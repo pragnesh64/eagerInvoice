@@ -4,20 +4,18 @@ import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button, Dropdown, InvoiceCard, StatCard } from '../../components';
 import { AddInvoiceModal } from '../../components/modals/AddInvoiceModal';
 import { useData } from '../../context/DataContext';
-import { Invoice } from '../../data/dummyData';
 
 export default function InvoicesScreen() {
   const { 
     filteredInvoices, 
     getTotalInvoices, 
-    getOutstandingAmount, 
+    getTotalRevenue, 
     setInvoiceFilter,
     clients 
   } = useData();
   
   const [showAddInvoiceModal, setShowAddInvoiceModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedClient, setSelectedClient] = useState<string>('all');
 
   const handleInvoicePress = (invoiceNumber: string) => {
@@ -30,50 +28,30 @@ export default function InvoicesScreen() {
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    updateFilters(query, selectedStatus, selectedClient);
-  };
-
-  const handleStatusFilter = (status: string) => {
-    setSelectedStatus(status);
-    updateFilters(searchQuery, status, selectedClient);
+    updateFilters(query, selectedClient);
   };
 
   const handleClientFilter = (clientId: string) => {
     setSelectedClient(clientId);
-    updateFilters(searchQuery, selectedStatus, clientId);
+    updateFilters(searchQuery, clientId);
   };
 
-  const updateFilters = (search: string, status: string, clientId: string) => {
+  const updateFilters = (search: string, clientId: string) => {
     setInvoiceFilter({
       search: search || undefined,
-      status: status === 'all' ? undefined : status as Invoice['status'],
       clientId: clientId === 'all' ? undefined : clientId,
     });
   };
 
   const clearFilters = () => {
     setSearchQuery('');
-    setSelectedStatus('all');
     setSelectedClient('all');
     setInvoiceFilter({});
   };
 
   // Calculate statistics
-  const paidInvoices = filteredInvoices.filter(inv => inv.status === 'paid');
-  const pendingInvoices = filteredInvoices.filter(inv => inv.status === 'pending');
-  const overdueInvoices = filteredInvoices.filter(inv => inv.status === 'overdue');
-
-  const totalPaid = paidInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
-  const totalPending = pendingInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
-  const totalOverdue = overdueInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
-
-  const statusOptions = [
-    { label: 'All Status', value: 'all' },
-    { label: 'Paid', value: 'paid' },
-    { label: 'Pending', value: 'pending' },
-    { label: 'Overdue', value: 'overdue' },
-    { label: 'Draft', value: 'draft' },
-  ];
+  const totalRevenue = getTotalRevenue();
+  const totalInvoices = getTotalInvoices();
 
   const clientOptions = [
     { label: 'All Clients', value: 'all' },
@@ -104,16 +82,16 @@ export default function InvoicesScreen() {
         <View style={styles.statsRow}>
           <StatCard
             title="Total Invoices"
-            value={getTotalInvoices()}
+            value={totalInvoices}
             subtitle="All time"
             icon="house.fill"
             variant="primary"
             style={styles.statCard}
           />
           <StatCard
-            title="Outstanding"
-            value={getOutstandingAmount()}
-            subtitle="Pending payment"
+            title="Total Revenue"
+            value={totalRevenue}
+            subtitle="All time"
             icon="chevron.right"
             variant="warning"
             style={styles.statCard}
@@ -134,16 +112,6 @@ export default function InvoicesScreen() {
           
           <View style={styles.filterSection}>
             <Dropdown
-              label="Filter by Status"
-              options={statusOptions}
-              value={selectedStatus}
-              onValueChange={handleStatusFilter}
-              placeholder="Select status"
-            />
-          </View>
-
-          <View style={styles.filterSection}>
-            <Dropdown
               label="Filter by Client"
               options={clientOptions}
               value={selectedClient}
@@ -153,7 +121,7 @@ export default function InvoicesScreen() {
             />
           </View>
 
-          {(searchQuery || selectedStatus !== 'all' || selectedClient !== 'all') && (
+          {(searchQuery || selectedClient !== 'all') && (
             <Button
               title="Clear Filters"
               variant="ghost"
@@ -161,27 +129,6 @@ export default function InvoicesScreen() {
               onPress={clearFilters}
             />
           )}
-        </View>
-
-        <View style={styles.spacer} />
-
-        {/* Status Summary */}
-        <View style={styles.statusSummary}>
-          <View style={styles.statusItem}>
-            <Text style={styles.statusLabel}>Paid</Text>
-            <Text style={styles.statusValue}>${totalPaid.toLocaleString()}</Text>
-            <Text style={styles.statusCount}>({paidInvoices.length})</Text>
-          </View>
-          <View style={styles.statusItem}>
-            <Text style={styles.statusLabel}>Pending</Text>
-            <Text style={styles.statusValue}>${totalPending.toLocaleString()}</Text>
-            <Text style={styles.statusCount}>({pendingInvoices.length})</Text>
-          </View>
-          <View style={styles.statusItem}>
-            <Text style={styles.statusLabel}>Overdue</Text>
-            <Text style={styles.statusValue}>${totalOverdue.toLocaleString()}</Text>
-            <Text style={styles.statusCount}>({overdueInvoices.length})</Text>
-          </View>
         </View>
 
         <View style={styles.spacer} />
@@ -200,25 +147,25 @@ export default function InvoicesScreen() {
           filteredInvoices.map((invoice) => (
             <InvoiceCard
               key={invoice.id}
-              invoiceNumber={invoice.invoiceNumber}
+              invoiceNumber={invoice.invoiceNo}
               clientName={invoice.clientName}
-              amount={invoice.totalAmount}
-              date={invoice.issueDate}
-              dueDate={invoice.dueDate}
-              status={invoice.status}
-              onPress={() => handleInvoicePress(invoice.invoiceNumber)}
+              amount={invoice.amount}
+              date={invoice.date}
+              dueDate={invoice.date}
+              status="paid"
+              onPress={() => handleInvoicePress(invoice.invoiceNo)}
             />
           ))
         ) : (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>
-              {searchQuery || selectedStatus !== 'all' || selectedClient !== 'all' 
+              {searchQuery || selectedClient !== 'all'
                 ? 'No invoices match your filters' 
                 : 'No invoices yet'
               }
             </Text>
             <Text style={styles.emptySubtext}>
-              {searchQuery || selectedStatus !== 'all' || selectedClient !== 'all'
+              {searchQuery || selectedClient !== 'all'
                 ? 'Try adjusting your search or filters'
                 : 'Create your first invoice to get started'
               }
@@ -304,39 +251,6 @@ const styles = StyleSheet.create({
   },
   filterSection: {
     marginBottom: 16,
-  },
-  statusSummary: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statusItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statusLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginBottom: 4,
-  },
-  statusValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 2,
-  },
-  statusCount: {
-    fontSize: 11,
-    color: '#9ca3af',
   },
   sectionHeader: {
     flexDirection: 'row',

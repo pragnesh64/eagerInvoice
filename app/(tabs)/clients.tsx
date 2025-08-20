@@ -9,6 +9,7 @@ import { Client } from '../../data/dummyData';
 export default function ClientsScreen() {
   const { 
     filteredClients, 
+    filteredInvoices,
     getActiveClients, 
     getTotalRevenue, 
     setClientFilter 
@@ -17,7 +18,6 @@ export default function ClientsScreen() {
   const [showAddClientModal, setShowAddClientModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string>('all');
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
 
   const handleClientPress = (clientName: string) => {
     console.log('Client pressed:', clientName);
@@ -29,46 +29,33 @@ export default function ClientsScreen() {
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    updateFilters(query, selectedType, selectedStatus);
+    updateFilters(query, selectedType);
   };
 
   const handleTypeFilter = (type: string) => {
     setSelectedType(type);
-    updateFilters(searchQuery, type, selectedStatus);
+    updateFilters(searchQuery, type);
   };
 
-  const handleStatusFilter = (status: string) => {
-    setSelectedStatus(status);
-    updateFilters(searchQuery, selectedType, status);
-  };
-
-  const updateFilters = (search: string, type: string, status: string) => {
+  const updateFilters = (search: string, type: string) => {
     setClientFilter({
       search: search || undefined,
       type: type === 'all' ? undefined : type as Client['type'],
-      status: status === 'all' ? undefined : status as Client['status'],
     });
   };
 
   const clearFilters = () => {
     setSearchQuery('');
     setSelectedType('all');
-    setSelectedStatus('all');
     setClientFilter({});
   };
 
   const typeOptions = [
     { label: 'All Types', value: 'all' },
-    { label: 'Individual', value: 'individual' },
-    { label: 'Company', value: 'company' },
-    { label: 'Startup', value: 'startup' },
-    { label: 'Enterprise', value: 'enterprise' },
-  ];
-
-  const statusOptions = [
-    { label: 'All Status', value: 'all' },
-    { label: 'Active', value: 'active' },
-    { label: 'Inactive', value: 'inactive' },
+    { label: 'Micro', value: 'Micro' },
+    { label: 'Mid', value: 'Mid' },
+    { label: 'Core', value: 'Core' },
+    { label: 'Large Retainer', value: 'Large Retainer' },
   ];
 
   return (
@@ -96,7 +83,7 @@ export default function ClientsScreen() {
               <Text style={styles.statLabel}>Total Clients</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>${getTotalRevenue().toLocaleString()}</Text>
+              <Text style={styles.statValue}>₹{getTotalRevenue().toLocaleString()}</Text>
               <Text style={styles.statLabel}>Total Revenue</Text>
             </View>
             <View style={styles.statItem}>
@@ -128,17 +115,7 @@ export default function ClientsScreen() {
             />
           </View>
 
-          <View style={styles.filterSection}>
-            <Dropdown
-              label="Filter by Status"
-              options={statusOptions}
-              value={selectedStatus}
-              onValueChange={handleStatusFilter}
-              placeholder="Select status"
-            />
-          </View>
-
-          {(searchQuery || selectedType !== 'all' || selectedStatus !== 'all') && (
+          {(searchQuery || selectedType !== 'all') && (
             <Button
               title="Clear Filters"
               variant="ghost"
@@ -161,28 +138,36 @@ export default function ClientsScreen() {
         <View style={styles.smallSpacer} />
 
         {filteredClients.length > 0 ? (
-          filteredClients.map((client) => (
-            <ClientCard
-              key={client.id}
-              name={client.name}
-              type={client.type}
-              email={client.email}
-              totalRevenue={client.totalRevenue}
-              invoiceCount={client.invoiceCount}
-              lastInvoiceDate={client.lastInvoiceDate}
-              onPress={() => handleClientPress(client.name)}
-            />
-          ))
+          filteredClients.map((client) => {
+            // Calculate client revenue from invoices
+            const clientInvoices = filteredInvoices.filter(inv => inv.clientId === client.id);
+            const totalRevenue = clientInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+            const invoiceCount = clientInvoices.length;
+            const lastInvoice = clientInvoices.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+            
+            return (
+              <ClientCard
+                key={client.id}
+                name={client.name}
+                type={client.type}
+                email={client.notes || ''}
+                totalRevenue={totalRevenue}
+                invoiceCount={invoiceCount}
+                lastInvoiceDate={lastInvoice?.date}
+                onPress={() => handleClientPress(client.name)}
+              />
+            );
+          })
         ) : (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>
-              {searchQuery || selectedType !== 'all' || selectedStatus !== 'all' 
+              {searchQuery || selectedType !== 'all'
                 ? 'No clients match your filters' 
                 : 'No clients yet'
               }
             </Text>
             <Text style={styles.emptySubtext}>
-              {searchQuery || selectedType !== 'all' || selectedStatus !== 'all'
+              {searchQuery || selectedType !== 'all'
                 ? 'Try adjusting your search or filters'
                 : 'Add your first client to get started'
               }
