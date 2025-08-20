@@ -1,11 +1,12 @@
+import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
-    Button,
-    ClientCard,
-    FloatingActionButton,
-    InvoiceCard,
-    StatCard
+  Button,
+  ClientCard,
+  FloatingActionButton,
+  InvoiceCard,
+  StatCard
 } from '../../components';
 import { AddInvoiceModal } from '../../components/modals/AddInvoiceModal';
 import { useData } from '../../context/DataContext';
@@ -15,7 +16,8 @@ export default function DashboardScreen() {
     filteredInvoices, 
     filteredClients, 
     getTotalRevenue, 
-    getOutstandingAmount,
+    getSalary,
+    getNetProfit,
     getActiveClients 
   } = useData();
   
@@ -38,11 +40,23 @@ export default function DashboardScreen() {
   
   // Get top clients (by revenue, last 2)
   const topClients = filteredClients
-    .sort((a, b) => b.totalRevenue - a.totalRevenue)
+    .sort((a, b) => {
+      const aRevenue = filteredInvoices
+        .filter(inv => inv.clientId === a.id)
+        .reduce((sum, inv) => sum + inv.amount, 0);
+      const bRevenue = filteredInvoices
+        .filter(inv => inv.clientId === b.id)
+        .reduce((sum, inv) => sum + inv.amount, 0);
+      return bRevenue - aRevenue;
+    })
     .slice(0, 2);
+
+  const salary = getSalary();
 
   return (
     <View style={styles.container}>
+      <StatusBar style="dark" />
+      
       <ScrollView 
         style={styles.scrollView} 
         showsVerticalScrollIndicator={false}
@@ -59,23 +73,34 @@ export default function DashboardScreen() {
         {/* Stats Row */}
         <View style={styles.statsRow}>
           <StatCard
-            title="Total Revenue"
+            title="Monthly Revenue"
             value={getTotalRevenue()}
-            subtitle="All time"
+            subtitle="Total this month"
             icon="house.fill"
-            trend={{ value: 12, isPositive: true }}
             variant="primary"
             style={styles.statCard}
           />
           <StatCard
-            title="Outstanding"
-            value={getOutstandingAmount()}
-            subtitle="Pending payment"
+            title="Mohit's Salary"
+            value={salary.total}
+            subtitle={`₹${salary.retainer.toLocaleString()} + ₹${salary.commission.toLocaleString()}`}
             icon="chevron.right"
-            trend={{ value: 8, isPositive: false }}
             variant="warning"
             style={styles.statCard}
           />
+        </View>
+
+        <View style={styles.spacer} />
+
+        {/* Net Profit */}
+        <View style={styles.profitCard}>
+          <View style={styles.profitContent}>
+            <Text style={styles.profitLabel}>Your Net Profit</Text>
+            <Text style={styles.profitValue}>₹{getNetProfit().toLocaleString()}</Text>
+            <Text style={styles.profitSubtitle}>
+              Revenue: ₹{getTotalRevenue().toLocaleString()} - Salary: ₹{salary.total.toLocaleString()}
+            </Text>
+          </View>
         </View>
 
         <View style={styles.spacer} />
@@ -93,13 +118,13 @@ export default function DashboardScreen() {
             recentInvoices.map((invoice) => (
               <InvoiceCard
                 key={invoice.id}
-                invoiceNumber={invoice.invoiceNumber}
+                invoiceNumber={invoice.invoiceNo}
                 clientName={invoice.clientName}
-                amount={invoice.totalAmount}
-                date={invoice.issueDate}
-                dueDate={invoice.dueDate}
-                status={invoice.status}
-                onPress={() => handleInvoicePress(invoice.invoiceNumber)}
+                amount={invoice.amount}
+                date={invoice.date}
+                dueDate={invoice.date}
+                status="paid"
+                onPress={() => handleInvoicePress(invoice.invoiceNo)}
               />
             ))
           ) : (
@@ -122,18 +147,25 @@ export default function DashboardScreen() {
           <View style={styles.smallSpacer} />
           
           {topClients.length > 0 ? (
-            topClients.map((client) => (
-              <ClientCard
-                key={client.id}
-                name={client.name}
-                type={client.type}
-                email={client.email}
-                totalRevenue={client.totalRevenue}
-                invoiceCount={client.invoiceCount}
-                lastInvoiceDate={client.lastInvoiceDate}
-                onPress={() => handleClientPress(client.name)}
-              />
-            ))
+            topClients.map((client) => {
+              const clientInvoices = filteredInvoices.filter(inv => inv.clientId === client.id);
+              const totalRevenue = clientInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+              const invoiceCount = clientInvoices.length;
+              const lastInvoice = clientInvoices.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+              
+              return (
+                <ClientCard
+                  key={client.id}
+                  name={client.name}
+                  type={client.type}
+                  email={client.notes || ''}
+                  totalRevenue={totalRevenue}
+                  invoiceCount={invoiceCount}
+                  lastInvoiceDate={lastInvoice?.date}
+                  onPress={() => handleClientPress(client.name)}
+                />
+              );
+            })
           ) : (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No clients yet</Text>
@@ -202,6 +234,37 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
+  },
+  profitCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  profitContent: {
+    alignItems: 'center',
+  },
+  profitLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 4,
+  },
+  profitValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#059669',
+    marginBottom: 4,
+  },
+  profitSubtitle: {
+    fontSize: 12,
+    color: '#9ca3af',
+    textAlign: 'center',
   },
   cardContainer: {
     backgroundColor: '#ffffff',

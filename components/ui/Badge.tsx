@@ -1,124 +1,84 @@
 import React from 'react';
-import { Text, View, ViewStyle } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 interface BadgeProps {
   children: React.ReactNode;
   variant?: 'default' | 'success' | 'warning' | 'error' | 'info' | 'outline' | 'primary' | 'secondary';
   size?: 'sm' | 'md' | 'lg';
-  style?: ViewStyle;
+  style?: any;
 }
 
-export function Badge({
-  children,
-  variant = 'default',
+export function Badge({ 
+  children, 
+  variant = 'default', 
   size = 'md',
-  style,
+  style 
 }: BadgeProps) {
-  const getBadgeStyle = (): ViewStyle => {
-    const baseStyle: ViewStyle = {
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 8,
-    };
-
-    // Size styles
-    switch (size) {
-      case 'sm':
-        baseStyle.paddingVertical = 2;
-        baseStyle.paddingHorizontal = 6;
-        break;
-      case 'lg':
-        baseStyle.paddingVertical = 6;
-        baseStyle.paddingHorizontal = 12;
-        break;
-      default: // md
-        baseStyle.paddingVertical = 4;
-        baseStyle.paddingHorizontal = 8;
-    }
-
-    // Variant styles
+  const getVariantStyle = () => {
     switch (variant) {
       case 'success':
-        baseStyle.backgroundColor = '#059669';
-        break;
+        return { backgroundColor: '#059669', color: '#ffffff' };
       case 'warning':
-        baseStyle.backgroundColor = '#d97706';
-        break;
+        return { backgroundColor: '#d97706', color: '#ffffff' };
       case 'error':
-        baseStyle.backgroundColor = '#dc2626';
-        break;
+        return { backgroundColor: '#dc2626', color: '#ffffff' };
       case 'info':
-        baseStyle.backgroundColor = '#1e40af';
-        break;
-      case 'primary':
-        baseStyle.backgroundColor = '#1e40af';
-        break;
-      case 'secondary':
-        baseStyle.backgroundColor = '#7c3aed';
-        break;
+        return { backgroundColor: '#1e40af', color: '#ffffff' };
       case 'outline':
-        baseStyle.backgroundColor = 'transparent';
-        baseStyle.borderWidth = 1;
-        baseStyle.borderColor = '#d1d5db';
-        break;
-      default:
-        baseStyle.backgroundColor = '#f3f4f6';
-    }
-
-    return baseStyle;
-  };
-
-  const getTextColor = () => {
-    switch (variant) {
-      case 'success':
-      case 'warning':
-      case 'error':
-      case 'info':
+        return { backgroundColor: 'transparent', color: '#6b7280', borderColor: '#d1d5db' };
       case 'primary':
+        return { backgroundColor: '#7c3aed', color: '#ffffff' };
       case 'secondary':
-        return '#ffffff';
-      case 'outline':
-        return '#6b7280';
+        return { backgroundColor: '#f3f4f6', color: '#374151' };
       default:
-        return '#374151';
+        return { backgroundColor: '#6b7280', color: '#ffffff' };
     }
   };
 
-  const getTextSize = () => {
+  const getSizeStyle = () => {
     switch (size) {
       case 'sm':
-        return 10;
+        return { paddingHorizontal: 6, paddingVertical: 2, fontSize: 10 };
       case 'lg':
-        return 12;
+        return { paddingHorizontal: 10, paddingVertical: 4, fontSize: 12 };
       default:
-        return 11;
+        return { paddingHorizontal: 8, paddingVertical: 3, fontSize: 11 };
     }
   };
+
+  const variantStyle = getVariantStyle();
+  const sizeStyle = getSizeStyle();
 
   return (
-    <View style={[getBadgeStyle(), style]}>
-      <Text
-        style={{
-          color: getTextColor(),
-          fontSize: getTextSize(),
-          fontWeight: '600',
-        }}
-      >
+    <View style={[
+      styles.badge,
+      {
+        backgroundColor: variantStyle.backgroundColor,
+        borderColor: variantStyle.borderColor,
+      },
+      sizeStyle,
+      style
+    ]}>
+      <Text style={[
+        styles.text,
+        {
+          color: variantStyle.color,
+          fontSize: sizeStyle.fontSize,
+        }
+      ]}>
         {children}
       </Text>
     </View>
   );
 }
 
-// Convenience components for common badge types
-export function StatusBadge({ 
-  status, 
-  ...props 
-}: Omit<BadgeProps, 'children' | 'variant'> & { 
-  status: 'paid' | 'pending' | 'overdue' | 'draft' 
-}) {
-  const getVariant = () => {
+interface StatusBadgeProps {
+  status: 'paid' | 'pending' | 'overdue' | 'draft';
+  size?: 'sm' | 'md' | 'lg';
+}
+
+export function StatusBadge({ status, size = 'md' }: StatusBadgeProps) {
+  const getStatusVariant = () => {
     switch (status) {
       case 'paid':
         return 'success';
@@ -128,38 +88,55 @@ export function StatusBadge({
         return 'error';
       case 'draft':
         return 'outline';
+      default:
+        return 'default';
     }
   };
 
   return (
-    <Badge variant={getVariant()} {...props}>
+    <Badge variant={getStatusVariant()} size={size}>
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </Badge>
   );
 }
 
-export function ClientTypeBadge({ 
-  type, 
-  ...props 
-}: Omit<BadgeProps, 'children' | 'variant'> & { 
-  type: 'individual' | 'company' | 'startup' | 'enterprise' 
-}) {
-  const getVariant = () => {
+interface ClientTypeBadgeProps {
+  type: 'Micro' | 'Mid' | 'Core' | 'Large Retainer';
+  size?: 'sm' | 'md' | 'lg';
+}
+
+export function ClientTypeBadge({ type, size = 'md' }: ClientTypeBadgeProps) {
+  const getTypeVariant = () => {
     switch (type) {
-      case 'enterprise':
-        return 'primary';
-      case 'company':
-        return 'info';
-      case 'startup':
-        return 'secondary';
-      case 'individual':
+      case 'Micro':
         return 'outline';
+      case 'Mid':
+        return 'secondary';
+      case 'Core':
+        return 'primary';
+      case 'Large Retainer':
+        return 'success';
+      default:
+        return 'default';
     }
   };
 
   return (
-    <Badge variant={getVariant()} {...props}>
-      {type.charAt(0).toUpperCase() + type.slice(1)}
+    <Badge variant={getTypeVariant()} size={size}>
+      {type}
     </Badge>
   );
-} 
+}
+
+const styles = StyleSheet.create({
+  badge: {
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  text: {
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+}); 

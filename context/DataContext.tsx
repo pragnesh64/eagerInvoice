@@ -3,59 +3,46 @@ import {
     Client,
     Invoice,
     ReportData,
+    calculateSalary,
     dummyClients,
     dummyInvoices,
     dummyReportData,
-    generateClientId
+    generateClientId,
+    generateReportData
 } from '../data/dummyData';
 
 interface DataContextType {
-  // Data
   clients: Client[];
   invoices: Invoice[];
   reportData: ReportData;
-  
-  // Client operations
-  addClient: (client: Omit<Client, 'id' | 'createdAt'>) => void;
+  addClient: (client: Omit<Client, 'id'>) => void;
   updateClient: (id: string, updates: Partial<Client>) => void;
   deleteClient: (id: string) => void;
   getClientById: (id: string) => Client | undefined;
-  
-  // Invoice operations
-  addInvoice: (invoice: Omit<Invoice, 'id' | 'createdAt'>) => void;
+  addInvoice: (invoice: Omit<Invoice, 'id'>) => void;
   updateInvoice: (id: string, updates: Partial<Invoice>) => void;
   deleteInvoice: (id: string) => void;
   getInvoiceById: (id: string) => Invoice | undefined;
   getInvoicesByClientId: (clientId: string) => Invoice[];
-  getInvoicesByStatus: (status: Invoice['status']) => Invoice[];
-  
-  // Filtering
   filteredClients: Client[];
   filteredInvoices: Invoice[];
   setClientFilter: (filter: ClientFilter) => void;
   setInvoiceFilter: (filter: InvoiceFilter) => void;
-  
-  // Statistics
   getTotalRevenue: () => number;
   getTotalInvoices: () => number;
-  getOutstandingAmount: () => number;
+  getSalary: () => any;
+  getNetProfit: () => number;
   getActiveClients: () => number;
 }
 
 interface ClientFilter {
-  type?: Client['type'];
-  status?: Client['status'];
   search?: string;
+  type?: Client['type'];
 }
 
 interface InvoiceFilter {
-  status?: Invoice['status'];
-  clientId?: string;
   search?: string;
-  dateRange?: {
-    start: string;
-    end: string;
-  };
+  clientId?: string;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -75,33 +62,65 @@ interface DataProviderProps {
 export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [clients, setClients] = useState<Client[]>(dummyClients);
   const [invoices, setInvoices] = useState<Invoice[]>(dummyInvoices);
-  const [reportData] = useState<ReportData>(dummyReportData);
+  const [reportData, setReportData] = useState<ReportData>(dummyReportData);
   
-  const [clientFilter, setClientFilter] = useState<ClientFilter>({});
-  const [invoiceFilter, setInvoiceFilter] = useState<InvoiceFilter>({});
+  const [clientFilter, setClientFilterState] = useState<ClientFilter>({});
+  const [invoiceFilter, setInvoiceFilterState] = useState<InvoiceFilter>({});
+
+  // Filtered data
+  const filteredClients = clients.filter(client => {
+    if (clientFilter.search) {
+      const searchLower = clientFilter.search.toLowerCase();
+      if (!client.name.toLowerCase().includes(searchLower) &&
+          !client.notes?.toLowerCase().includes(searchLower)) {
+        return false;
+      }
+    }
+    if (clientFilter.type && client.type !== clientFilter.type) {
+      return false;
+    }
+    return true;
+  });
+
+  const filteredInvoices = invoices.filter(invoice => {
+    if (invoiceFilter.search) {
+      const searchLower = invoiceFilter.search.toLowerCase();
+      if (!invoice.invoiceNo.toLowerCase().includes(searchLower) &&
+          !invoice.clientName.toLowerCase().includes(searchLower)) {
+        return false;
+      }
+    }
+    if (invoiceFilter.clientId && invoice.clientId !== invoiceFilter.clientId) {
+      return false;
+    }
+    return true;
+  });
 
   // Client operations
-  const addClient = (clientData: Omit<Client, 'id' | 'createdAt'>) => {
+  const addClient = (clientData: Omit<Client, 'id'>) => {
     const newClient: Client = {
       ...clientData,
       id: generateClientId(),
-      createdAt: new Date().toISOString().split('T')[0],
     };
-    setClients(prev => [...prev, newClient]);
+    const updatedClients = [...clients, newClient];
+    setClients(updatedClients);
+    updateReportData(updatedClients, invoices);
   };
 
   const updateClient = (id: string, updates: Partial<Client>) => {
-    setClients(prev => 
-      prev.map(client => 
-        client.id === id ? { ...client, ...updates } : client
-      )
+    const updatedClients = clients.map(client =>
+      client.id === id ? { ...client, ...updates } : client
     );
+    setClients(updatedClients);
+    updateReportData(updatedClients, invoices);
   };
 
   const deleteClient = (id: string) => {
-    setClients(prev => prev.filter(client => client.id !== id));
-    // Also delete related invoices
-    setInvoices(prev => prev.filter(invoice => invoice.clientId !== id));
+    const updatedClients = clients.filter(client => client.id !== id);
+    const updatedInvoices = invoices.filter(invoice => invoice.clientId !== id);
+    setClients(updatedClients);
+    setInvoices(updatedInvoices);
+    updateReportData(updatedClients, updatedInvoices);
   };
 
   const getClientById = (id: string) => {
@@ -109,47 +128,28 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   };
 
   // Invoice operations
-  const addInvoice = (invoiceData: Omit<Invoice, 'id' | 'createdAt'>) => {
+  const addInvoice = (invoiceData: Omit<Invoice, 'id'>) => {
     const newInvoice: Invoice = {
       ...invoiceData,
-      id: (invoices.length + 1).toString(),
-      createdAt: new Date().toISOString().split('T')[0],
+      id: Date.now().toString(),
     };
-    setInvoices(prev => [...prev, newInvoice]);
-    
-    // Update client's invoice count and revenue
-    const client = getClientById(invoiceData.clientId);
-    if (client) {
-      updateClient(client.id, {
-        invoiceCount: client.invoiceCount + 1,
-        totalRevenue: client.totalRevenue + invoiceData.totalAmount,
-        lastInvoiceDate: invoiceData.issueDate,
-      });
-    }
+    const updatedInvoices = [...invoices, newInvoice];
+    setInvoices(updatedInvoices);
+    updateReportData(clients, updatedInvoices);
   };
 
   const updateInvoice = (id: string, updates: Partial<Invoice>) => {
-    setInvoices(prev => 
-      prev.map(invoice => 
-        invoice.id === id ? { ...invoice, ...updates } : invoice
-      )
+    const updatedInvoices = invoices.map(invoice =>
+      invoice.id === id ? { ...invoice, ...updates } : invoice
     );
+    setInvoices(updatedInvoices);
+    updateReportData(clients, updatedInvoices);
   };
 
   const deleteInvoice = (id: string) => {
-    const invoice = getInvoiceById(id);
-    if (invoice) {
-      setInvoices(prev => prev.filter(inv => inv.id !== id));
-      
-      // Update client's invoice count and revenue
-      const client = getClientById(invoice.clientId);
-      if (client) {
-        updateClient(client.id, {
-          invoiceCount: Math.max(0, client.invoiceCount - 1),
-          totalRevenue: Math.max(0, client.totalRevenue - invoice.totalAmount),
-        });
-      }
-    }
+    const updatedInvoices = invoices.filter(invoice => invoice.id !== id);
+    setInvoices(updatedInvoices);
+    updateReportData(clients, updatedInvoices);
   };
 
   const getInvoiceById = (id: string) => {
@@ -160,61 +160,43 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     return invoices.filter(invoice => invoice.clientId === clientId);
   };
 
-  const getInvoicesByStatus = (status: Invoice['status']) => {
-    return invoices.filter(invoice => invoice.status === status);
+  // Filter operations
+  const setClientFilter = (filter: ClientFilter) => {
+    setClientFilterState(filter);
   };
 
-  // Filtering
-  const filteredClients = clients.filter(client => {
-    if (clientFilter.type && client.type !== clientFilter.type) return false;
-    if (clientFilter.status && client.status !== clientFilter.status) return false;
-    if (clientFilter.search) {
-      const search = clientFilter.search.toLowerCase();
-      return (
-        client.name.toLowerCase().includes(search) ||
-        client.email.toLowerCase().includes(search)
-      );
-    }
-    return true;
-  });
+  const setInvoiceFilter = (filter: InvoiceFilter) => {
+    setInvoiceFilterState(filter);
+  };
 
-  const filteredInvoices = invoices.filter(invoice => {
-    if (invoiceFilter.status && invoice.status !== invoiceFilter.status) return false;
-    if (invoiceFilter.clientId && invoice.clientId !== invoiceFilter.clientId) return false;
-    if (invoiceFilter.search) {
-      const search = invoiceFilter.search.toLowerCase();
-      return (
-        invoice.invoiceNumber.toLowerCase().includes(search) ||
-        invoice.clientName.toLowerCase().includes(search) ||
-        invoice.description.toLowerCase().includes(search)
-      );
-    }
-    if (invoiceFilter.dateRange) {
-      const issueDate = new Date(invoice.issueDate);
-      const startDate = new Date(invoiceFilter.dateRange.start);
-      const endDate = new Date(invoiceFilter.dateRange.end);
-      return issueDate >= startDate && issueDate <= endDate;
-    }
-    return true;
-  });
-
-  // Statistics
+  // Calculations
   const getTotalRevenue = () => {
-    return clients.reduce((total, client) => total + client.totalRevenue, 0);
+    return invoices.reduce((sum, invoice) => sum + invoice.amount, 0);
   };
 
   const getTotalInvoices = () => {
     return invoices.length;
   };
 
-  const getOutstandingAmount = () => {
-    return invoices
-      .filter(invoice => invoice.status === 'pending' || invoice.status === 'overdue')
-      .reduce((total, invoice) => total + invoice.totalAmount, 0);
+  const getSalary = () => {
+    const monthlyRevenue = getTotalRevenue();
+    return calculateSalary(monthlyRevenue);
+  };
+
+  const getNetProfit = () => {
+    const monthlyRevenue = getTotalRevenue();
+    const salary = calculateSalary(monthlyRevenue);
+    return monthlyRevenue - salary.total;
   };
 
   const getActiveClients = () => {
-    return clients.filter(client => client.status === 'active').length;
+    return clients.length;
+  };
+
+  // Update report data when data changes
+  const updateReportData = (updatedClients: Client[], updatedInvoices: Invoice[]) => {
+    const newReportData = generateReportData();
+    setReportData(newReportData);
   };
 
   const value: DataContextType = {
@@ -230,14 +212,14 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     deleteInvoice,
     getInvoiceById,
     getInvoicesByClientId,
-    getInvoicesByStatus,
     filteredClients,
     filteredInvoices,
     setClientFilter,
     setInvoiceFilter,
     getTotalRevenue,
     getTotalInvoices,
-    getOutstandingAmount,
+    getSalary,
+    getNetProfit,
     getActiveClients,
   };
 

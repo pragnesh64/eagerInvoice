@@ -1,13 +1,5 @@
 import React, { useState } from 'react';
-import {
-    Alert,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
-} from 'react-native';
+import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useData } from '../../context/DataContext';
 import { Client } from '../../data/dummyData';
 import { Button, Dropdown } from '../ui';
@@ -19,32 +11,35 @@ interface AddClientModalProps {
 
 export function AddClientModal({ visible, onClose }: AddClientModalProps) {
   const { addClient } = useData();
-  
   const [formData, setFormData] = useState({
     name: '',
-    email: '',
-    phone: '',
-    address: '',
-    type: 'individual' as Client['type'],
+    type: 'Micro' as Client['type'],
+    startDate: new Date().toISOString().split('T')[0], // Today's date
+    notes: '',
   });
-
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const validateForm = (): boolean => {
+  const updateFormData = (field: keyof typeof formData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
     if (!formData.name.trim()) {
-      newErrors.name = 'Name is required';
+      newErrors.name = 'Client name is required';
     }
 
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
+    if (!formData.type) {
+      newErrors.type = 'Client type is required';
     }
 
-    if (formData.phone && !/^\+?[\d\s\-\(\)]+$/.test(formData.phone)) {
-      newErrors.phone = 'Phone number is invalid';
+    if (!formData.startDate) {
+      newErrors.startDate = 'Start date is required';
     }
 
     setErrors(newErrors);
@@ -59,46 +54,44 @@ export function AddClientModal({ visible, onClose }: AddClientModalProps) {
     try {
       addClient({
         name: formData.name.trim(),
-        email: formData.email.trim(),
-        phone: formData.phone.trim() || undefined,
-        address: formData.address.trim() || undefined,
         type: formData.type,
-        totalRevenue: 0,
-        invoiceCount: 0,
-        status: 'active',
+        startDate: formData.startDate,
+        notes: formData.notes.trim() || undefined,
       });
 
+      // Reset form
+      setFormData({
+        name: '',
+        type: 'Micro',
+        startDate: new Date().toISOString().split('T')[0],
+        notes: '',
+      });
+      setErrors({});
+
       Alert.alert('Success', 'Client added successfully!');
-      handleClose();
+      onClose();
     } catch (error) {
       Alert.alert('Error', 'Failed to add client. Please try again.');
     }
   };
 
-  const handleClose = () => {
+  const handleCancel = () => {
+    // Reset form
     setFormData({
       name: '',
-      email: '',
-      phone: '',
-      address: '',
-      type: 'individual',
+      type: 'Micro',
+      startDate: new Date().toISOString().split('T')[0],
+      notes: '',
     });
     setErrors({});
     onClose();
   };
 
-  const updateFormData = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
-  };
-
   const typeOptions = [
-    { label: 'Individual', value: 'individual' },
-    { label: 'Company', value: 'company' },
-    { label: 'Startup', value: 'startup' },
-    { label: 'Enterprise', value: 'enterprise' },
+    { label: 'Micro', value: 'Micro' },
+    { label: 'Mid', value: 'Mid' },
+    { label: 'Core', value: 'Core' },
+    { label: 'Large Retainer', value: 'Large Retainer' },
   ];
 
   return (
@@ -106,87 +99,75 @@ export function AddClientModal({ visible, onClose }: AddClientModalProps) {
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
-      onRequestClose={handleClose}
+      onRequestClose={handleCancel}
     >
       <View style={styles.container}>
+        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Add New Client</Text>
-          <Button title="Cancel" variant="ghost" size="sm" onPress={handleClose} />
+          <Button title="Cancel" variant="ghost" size="sm" onPress={handleCancel} />
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.form}>
-            {/* Name */}
+            {/* Client Name */}
             <View style={styles.field}>
-              <Text style={styles.label}>Name *</Text>
+              <Text style={styles.label}>Client Name *</Text>
               <TextInput
                 style={[styles.input, errors.name && styles.inputError]}
                 value={formData.name}
                 onChangeText={(value) => updateFormData('name', value)}
                 placeholder="Enter client name"
-                autoCapitalize="words"
+                placeholderTextColor="#9ca3af"
               />
               {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
             </View>
 
-            {/* Email */}
+            {/* Client Type */}
             <View style={styles.field}>
-              <Text style={styles.label}>Email *</Text>
-              <TextInput
-                style={[styles.input, errors.email && styles.inputError]}
-                value={formData.email}
-                onChangeText={(value) => updateFormData('email', value)}
-                placeholder="Enter email address"
-                keyboardType="email-address"
-                autoCapitalize="none"
+              <Dropdown
+                label="Client Type *"
+                options={typeOptions}
+                value={formData.type}
+                onValueChange={(value) => updateFormData('type', value as Client['type'])}
+                placeholder="Select client type"
               />
-              {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+              {errors.type && <Text style={styles.errorText}>{errors.type}</Text>}
             </View>
 
-            {/* Phone */}
+            {/* Start Date */}
             <View style={styles.field}>
-              <Text style={styles.label}>Phone</Text>
+              <Text style={styles.label}>Start Date *</Text>
               <TextInput
-                style={[styles.input, errors.phone && styles.inputError]}
-                value={formData.phone}
-                onChangeText={(value) => updateFormData('phone', value)}
-                placeholder="Enter phone number"
-                keyboardType="phone-pad"
+                style={[styles.input, errors.startDate && styles.inputError]}
+                value={formData.startDate}
+                onChangeText={(value) => updateFormData('startDate', value)}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor="#9ca3af"
               />
-              {errors.phone && <Text style={styles.errorText}>{errors.phone}</Text>}
+              {errors.startDate && <Text style={styles.errorText}>{errors.startDate}</Text>}
             </View>
 
-            {/* Address */}
+            {/* Notes */}
             <View style={styles.field}>
-              <Text style={styles.label}>Address</Text>
+              <Text style={styles.label}>Notes</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
-                value={formData.address}
-                onChangeText={(value) => updateFormData('address', value)}
-                placeholder="Enter address"
+                value={formData.notes}
+                onChangeText={(value) => updateFormData('notes', value)}
+                placeholder="Add any notes about this client"
+                placeholderTextColor="#9ca3af"
                 multiline
                 numberOfLines={3}
+                textAlignVertical="top"
               />
             </View>
-
-            {/* Type */}
-            <Dropdown
-              label="Client Type"
-              options={typeOptions}
-              value={formData.type}
-              onValueChange={(value) => updateFormData('type', value)}
-              placeholder="Select client type"
-            />
           </View>
         </ScrollView>
 
+        {/* Footer */}
         <View style={styles.footer}>
-          <Button
-            title="Add Client"
-            variant="primary"
-            onPress={handleSubmit}
-            fullWidth
-          />
+          <Button title="Add Client" variant="primary" onPress={handleSubmit} />
         </View>
       </View>
     </Modal>
@@ -203,9 +184,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
   },
   title: {
     fontSize: 18,
@@ -214,18 +195,18 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 16,
   },
   form: {
-    gap: 16,
+    padding: 16,
   },
   field: {
-    gap: 8,
+    marginBottom: 20,
   },
   label: {
     fontSize: 14,
     fontWeight: '500',
     color: '#374151',
+    marginBottom: 8,
   },
   input: {
     backgroundColor: '#ffffff',
@@ -244,14 +225,14 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   errorText: {
-    fontSize: 12,
     color: '#dc2626',
+    fontSize: 12,
     marginTop: 4,
   },
   footer: {
     padding: 16,
-    backgroundColor: '#ffffff',
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
   },
 }); 

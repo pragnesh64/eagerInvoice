@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBadge } from './ui/Badge';
 
 interface InvoiceCardProps {
@@ -10,7 +10,6 @@ interface InvoiceCardProps {
   dueDate: string;
   status: 'paid' | 'pending' | 'overdue' | 'draft';
   onPress?: () => void;
-  style?: ViewStyle;
 }
 
 export function InvoiceCard({
@@ -21,99 +20,66 @@ export function InvoiceCard({
   dueDate,
   status,
   onPress,
-  style,
 }: InvoiceCardProps) {
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
       day: 'numeric',
-      year: 'numeric',
+      year: 'numeric'
     });
   };
 
-  const getStatusColor = () => {
-    switch (status) {
-      case 'paid':
-        return '#059669';
-      case 'pending':
-        return '#d97706';
-      case 'overdue':
-        return '#dc2626';
-      case 'draft':
-        return '#6b7280';
-    }
-  };
-
-  const CardComponent = onPress ? Pressable : View;
-
   return (
-    <CardComponent
-      style={[styles.container, style]}
-      onPress={onPress}
-    >
-      <View style={styles.card}>
-        <View style={styles.header}>
-          <View style={styles.leftSection}>
-            <Text style={styles.invoiceNumber}>#{invoiceNumber}</Text>
-            <Text style={styles.clientName}>
-              {clientName}
-            </Text>
-          </View>
+    <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
+      <View style={styles.header}>
+        <View style={styles.invoiceInfo}>
+          <Text style={styles.invoiceNumber}>{invoiceNumber}</Text>
+          <Text style={styles.clientName}>{clientName}</Text>
+        </View>
+        <View style={styles.amountContainer}>
+          <Text style={styles.amount}>₹{amount.toLocaleString()}</Text>
           <StatusBadge status={status} size="sm" />
         </View>
+      </View>
 
-        <View style={styles.divider} />
+      <View style={styles.divider} />
 
-        <View style={styles.details}>
-          <View style={styles.amountSection}>
-            <Text style={styles.amount}>
-              ${amount.toLocaleString()}
-            </Text>
-            <Text style={styles.amountLabel}>
-              Amount
-            </Text>
-          </View>
-
-          <View style={styles.dateSection}>
-            <View style={styles.dateRow}>
-              <Text style={styles.dateLabel}>Issued:</Text>
-              <Text style={styles.dateText}>{formatDate(date)}</Text>
-            </View>
-            <View style={styles.dateRow}>
-              <Text style={styles.dateLabel}>Due:</Text>
-              <Text style={[styles.dateText, { color: getStatusColor() }]}>
-                {formatDate(dueDate)}
-              </Text>
-            </View>
-          </View>
+      <View style={styles.footer}>
+        <View style={styles.dateInfo}>
+          <Text style={styles.dateLabel}>Date:</Text>
+          <Text style={styles.dateText}>{formatDate(date)}</Text>
+        </View>
+        <View style={styles.dateInfo}>
+          <Text style={styles.dateLabel}>Due:</Text>
+          <Text style={styles.dateText}>{formatDate(dueDate)}</Text>
         </View>
       </View>
-    </CardComponent>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 8,
-  },
-  card: {
     backgroundColor: '#ffffff',
     borderRadius: 8,
     padding: 12,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: '#e5e7eb',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    marginBottom: 8,
   },
-  leftSection: {
+  invoiceInfo: {
     flex: 1,
   },
   invoiceNumber: {
@@ -126,45 +92,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6b7280',
   },
-  divider: {
-    height: 1,
-    backgroundColor: '#f3f4f6',
-    marginVertical: 8,
-  },
-  details: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  amountContainer: {
     alignItems: 'flex-end',
-  },
-  amountSection: {
-    alignItems: 'flex-start',
   },
   amount: {
     fontSize: 18,
     fontWeight: '600',
     color: '#111827',
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  amountLabel: {
-    fontSize: 11,
-    color: '#6b7280',
+  divider: {
+    height: 1,
+    backgroundColor: '#f3f4f6',
+    marginVertical: 8,
   },
-  dateSection: {
-    alignItems: 'flex-end',
-  },
-  dateRow: {
+  footer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 1,
+    justifyContent: 'space-between',
+  },
+  dateInfo: {
+    alignItems: 'flex-start',
   },
   dateLabel: {
     fontSize: 11,
     color: '#6b7280',
-    marginRight: 4,
+    marginBottom: 2,
   },
   dateText: {
     fontSize: 13,
     color: '#111827',
-    fontWeight: '500',
   },
 }); 
