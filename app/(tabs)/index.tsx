@@ -1,12 +1,11 @@
-import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
-  Button,
-  ClientCard,
-  FloatingActionButton,
-  InvoiceCard,
-  StatCard
+    Button,
+    ClientCard,
+    FloatingActionButton,
+    InvoiceCard,
+    StatCard
 } from '../../components';
 import { AddInvoiceModal } from '../../components/modals/AddInvoiceModal';
 import { useData } from '../../context/DataContext';
@@ -44,8 +43,6 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
-      
       <ScrollView 
         style={styles.scrollView} 
         showsVerticalScrollIndicator={false}
