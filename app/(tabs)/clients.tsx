@@ -1,306 +1,151 @@
-import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Button, ClientCard, Dropdown } from '../../components';
-import { AddClientModal } from '../../components/modals/AddClientModal';
-import { useData } from '../../context/DataContext';
-import { Client } from '../../data/dummyData';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Button, ClientCard } from '../../components';
+import { AddClientModal } from '../../components/modals';
+import { useDatabase } from '../../context/DatabaseContext';
+
+interface Client {
+    id: string;
+    name: string;
+    type: 'Micro' | 'Mid' | 'Core' | 'Large Retainer';
+    startDate: string;
+    notes?: string;
+}
 
 export default function ClientsScreen() {
-  const { 
-    filteredClients, 
-    filteredInvoices,
-    getActiveClients, 
-    getTotalRevenue, 
-    setClientFilter 
-  } = useData();
-  
-  const [showAddClientModal, setShowAddClientModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedType, setSelectedType] = useState<string>('all');
+    const { clients } = useDatabase();
+    const [isModalVisible, setIsModalVisible] = useState(false);
+    const [clientList, setClientList] = useState<Client[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
-  const handleClientPress = (clientName: string) => {
-    console.log('Client pressed:', clientName);
-  };
+    useEffect(() => {
+        loadClients();
+    }, []);
 
-  const handleAddClient = () => {
-    setShowAddClientModal(true);
-  };
+    const loadClients = async () => {
+        try {
+            setIsLoading(true);
+            const data = await clients.getAll();
+            setClientList(data);
+        } catch (error) {
+            console.error('Error loading clients:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    updateFilters(query, selectedType);
-  };
+    const handleAddClient = async (data: Omit<Client, 'id'>) => {
+        try {
+            await clients.create(data);
+            await loadClients();
+            setIsModalVisible(false);
+        } catch (error) {
+            console.error('Error adding client:', error);
+        }
+    };
 
-  const handleTypeFilter = (type: string) => {
-    setSelectedType(type);
-    updateFilters(searchQuery, type);
-  };
+    const handleDeleteClient = async (id: string) => {
+        try {
+            await clients.delete(id);
+            await loadClients();
+        } catch (error) {
+            console.error('Error deleting client:', error);
+        }
+    };
 
-  const updateFilters = (search: string, type: string) => {
-    setClientFilter({
-      search: search || undefined,
-      type: type === 'all' ? undefined : type as Client['type'],
-    });
-  };
+    return (
+        <View style={styles.container}>
+            <ScrollView 
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Header */}
+                <View style={styles.header}>
+                    <Text style={styles.title}>Clients</Text>
+                    <Text style={styles.subtitle}>Manage your client list</Text>
+                </View>
 
-  const clearFilters = () => {
-    setSearchQuery('');
-    setSelectedType('all');
-    setClientFilter({});
-  };
+                {/* Add Client Button */}
+                <Button
+                    title="Add New Client"
+                    onPress={() => setIsModalVisible(true)}
+                    variant="primary"
+                    style={styles.addButton}
+                />
 
-  const typeOptions = [
-    { label: 'All Types', value: 'all' },
-    { label: 'Micro', value: 'Micro' },
-    { label: 'Mid', value: 'Mid' },
-    { label: 'Core', value: 'Core' },
-    { label: 'Large Retainer', value: 'Large Retainer' },
-  ];
+                {/* Client List */}
+                <View style={styles.clientList}>
+                    {isLoading ? (
+                        <Text style={styles.loadingText}>Loading clients...</Text>
+                    ) : clientList.length === 0 ? (
+                        <Text style={styles.emptyText}>No clients yet. Add your first client!</Text>
+                    ) : (
+                        clientList.map(client => (
+                            <ClientCard
+                                key={client.id}
+                                client={client}
+                                onDelete={() => handleDeleteClient(client.id)}
+                                style={styles.clientCard}
+                            />
+                        ))
+                    )}
+                </View>
+            </ScrollView>
 
-  return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
-      
-      <ScrollView 
-        style={styles.scrollView} 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.mainTitle}>Clients</Text>
-          <Text style={styles.subtitle}>Manage your client relationships</Text>
-        </View>
-
-        <View style={styles.spacer} />
-
-        {/* Stats Card */}
-        <View style={styles.statsCard}>
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{filteredClients.length}</Text>
-              <Text style={styles.statLabel}>Total Clients</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>₹{getTotalRevenue().toLocaleString()}</Text>
-              <Text style={styles.statLabel}>Total Revenue</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{getActiveClients()}</Text>
-              <Text style={styles.statLabel}>Active Clients</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.spacer} />
-
-        {/* Search and Filters */}
-        <View style={styles.filtersCard}>
-          <TextInput
-            style={styles.searchInput}
-            value={searchQuery}
-            onChangeText={handleSearch}
-            placeholder="Search clients..."
-            placeholderTextColor="#9ca3af"
-          />
-          
-          <View style={styles.filterSection}>
-            <Dropdown
-              label="Filter by Type"
-              options={typeOptions}
-              value={selectedType}
-              onValueChange={handleTypeFilter}
-              placeholder="Select client type"
+            {/* Add Client Modal */}
+            <AddClientModal
+                visible={isModalVisible}
+                onClose={() => setIsModalVisible(false)}
+                onSubmit={handleAddClient}
             />
-          </View>
-
-          {(searchQuery || selectedType !== 'all') && (
-            <Button
-              title="Clear Filters"
-              variant="ghost"
-              size="sm"
-              onPress={clearFilters}
-            />
-          )}
         </View>
-
-        <View style={styles.spacer} />
-
-        {/* Clients List */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            {filteredClients.length === 0 ? 'No Clients Found' : `All Clients (${filteredClients.length})`}
-          </Text>
-          <Button title="Add Client" variant="primary" size="sm" onPress={handleAddClient} />
-        </View>
-
-        <View style={styles.smallSpacer} />
-
-        {filteredClients.length > 0 ? (
-          filteredClients.map((client) => {
-            // Calculate client revenue from invoices
-            const clientInvoices = filteredInvoices.filter(inv => inv.clientId === client.id);
-            const totalRevenue = clientInvoices.reduce((sum, inv) => sum + inv.amount, 0);
-            const invoiceCount = clientInvoices.length;
-            const lastInvoice = clientInvoices.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-            
-            return (
-              <ClientCard
-                key={client.id}
-                name={client.name}
-                type={client.type}
-                email={client.notes || ''}
-                totalRevenue={totalRevenue}
-                invoiceCount={invoiceCount}
-                lastInvoiceDate={lastInvoice?.date}
-                onPress={() => handleClientPress(client.name)}
-              />
-            );
-          })
-        ) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>
-              {searchQuery || selectedType !== 'all'
-                ? 'No clients match your filters' 
-                : 'No clients yet'
-              }
-            </Text>
-            <Text style={styles.emptySubtext}>
-              {searchQuery || selectedType !== 'all'
-                ? 'Try adjusting your search or filters'
-                : 'Add your first client to get started'
-              }
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.largeSpacer} />
-      </ScrollView>
-
-      {/* Add Client Modal */}
-      <AddClientModal
-        visible={showAddClientModal}
-        onClose={() => setShowAddClientModal(false)}
-      />
-    </View>
-  );
+    );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f9fafb',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingTop: 50,
-  },
-  header: {
-    marginBottom: 4,
-  },
-  mainTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6b7280',
-    lineHeight: 20,
-  },
-  spacer: {
-    height: 16,
-  },
-  smallSpacer: {
-    height: 8,
-  },
-  largeSpacer: {
-    height: 32,
-  },
-  statsCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    textAlign: 'center',
-  },
-  filtersCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  searchInput: {
-    backgroundColor: '#f9fafb',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: '#111827',
-    marginBottom: 16,
-  },
-  filterSection: {
-    marginBottom: 16,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 24,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#6b7280',
-    marginBottom: 4,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#9ca3af',
-  },
+    container: {
+        flex: 1,
+        backgroundColor: '#f9fafb',
+    },
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        padding: 16,
+        paddingTop: 50,
+    },
+    header: {
+        marginBottom: 24,
+    },
+    title: {
+        fontSize: 28,
+        fontWeight: 'bold',
+        color: '#111827',
+        marginBottom: 4,
+    },
+    subtitle: {
+        fontSize: 14,
+        color: '#6b7280',
+        lineHeight: 20,
+    },
+    addButton: {
+        marginBottom: 24,
+    },
+    clientList: {
+        gap: 12,
+    },
+    clientCard: {
+        marginBottom: 12,
+    },
+    loadingText: {
+        textAlign: 'center',
+        color: '#6b7280',
+        marginTop: 24,
+    },
+    emptyText: {
+        textAlign: 'center',
+        color: '#6b7280',
+        marginTop: 24,
+    },
 }); 

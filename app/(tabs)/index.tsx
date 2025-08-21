@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   Button,
@@ -9,19 +9,104 @@ import {
   StatCard
 } from '../../components';
 import { AddInvoiceModal } from '../../components/modals/AddInvoiceModal';
-import { useData } from '../../context/DataContext';
+import { useDatabase } from '../../context/DatabaseContext';
+
+interface Client {
+  id: string;
+  name: string;
+  type: 'Micro' | 'Mid' | 'Core' | 'Large Retainer';
+  startDate: string;
+  notes?: string;
+}
+
+interface Invoice {
+  id: string;
+  clientId: string;
+  invoiceNo: string;
+  clientName: string;
+  amount: number;
+  date: string;
+  totalRevenue?: number;
+}
+
+interface SalaryData {
+  retainer: number;
+  commission: number;
+  total: number;
+}
+
+const DEFAULT_SALARY: SalaryData = {
+  retainer: 15000,
+  commission: 0,
+  total: 15000
+};
 
 export default function DashboardScreen() {
-  const { 
-    filteredInvoices, 
-    filteredClients, 
-    getTotalRevenue, 
-    getSalary,
-    getNetProfit,
-    getActiveClients 
-  } = useData();
-  
+  const { clients, invoices, salary, reports } = useDatabase();
+
+  const [clientList, setClientList] = useState<Client[]>([]);
+  const [invoiceList, setInvoiceList] = useState<Invoice[]>([]);
+  const [monthlyStats, setMonthlyStats] = useState({
+    revenue: 0,
+    salary: DEFAULT_SALARY,
+    netProfit: 0
+  });
   const [showAddInvoiceModal, setShowAddInvoiceModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Load clients
+      const allClients = await clients.getAll();
+      setClientList(allClients.map(client => ({
+        id: client.id,
+        name: client.name,
+        type: client.type,
+        startDate: client.start_date,
+        notes: client.notes
+      })));
+
+      // Load invoices with client names
+      const allInvoices = await invoices.getAll();
+      const mappedInvoices = allInvoices.map(invoice => ({
+        id: invoice.id,
+        clientId: invoice.client_id,
+        invoiceNo: invoice.invoice_no,
+        clientName: invoice.client_name || 'Unknown Client',
+        amount: invoice.amount,
+        date: invoice.date,
+        totalRevenue: 0 // Added for client sorting
+      }));
+      setInvoiceList(mappedInvoices);
+
+      // Load monthly stats
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      const monthOverview = await reports.getMonthlyOverview(currentMonth);
+      const monthSalaryData = await salary.getByMonth(currentMonth);
+      const monthSalary = monthSalaryData ? {
+        retainer: monthSalaryData.retainer,
+        commission: monthSalaryData.commission,
+        total: monthSalaryData.total
+      } : DEFAULT_SALARY;
+      
+      setMonthlyStats({
+        revenue: monthOverview?.revenue || 0,
+        salary: monthSalary,
+        netProfit: monthOverview?.netProfit || 0
+      });
+
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleAddInvoice = () => {
     setShowAddInvoiceModal(true);
@@ -36,22 +121,25 @@ export default function DashboardScreen() {
   };
 
   // Get recent invoices (last 3)
-  const recentInvoices = filteredInvoices.slice(0, 3);
+  const recentInvoices = invoiceList.slice(0, 3);
   
   // Get top clients (by revenue, last 2)
-  const topClients = filteredClients
-    .sort((a, b) => {
-      const aRevenue = filteredInvoices
-        .filter(inv => inv.clientId === a.id)
-        .reduce((sum, inv) => sum + inv.amount, 0);
-      const bRevenue = filteredInvoices
-        .filter(inv => inv.clientId === b.id)
-        .reduce((sum, inv) => sum + inv.amount, 0);
-      return bRevenue - aRevenue;
+  const topClients = clientList
+    .map(client => {
+      const clientInvoices = invoiceList.filter(inv => inv.clientId === client.id);
+      const totalRevenue = clientInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+      return { ...client, totalRevenue };
     })
+    .sort((a, b) => (b.totalRevenue || 0) - (a.totalRevenue || 0))
     .slice(0, 2);
 
-  const salary = getSalary();
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -74,7 +162,7 @@ export default function DashboardScreen() {
         <View style={styles.statsRow}>
           <StatCard
             title="Monthly Revenue"
-            value={getTotalRevenue()}
+            value={monthlyStats.revenue}
             subtitle="Total this month"
             icon="house.fill"
             variant="primary"
@@ -82,8 +170,8 @@ export default function DashboardScreen() {
           />
           <StatCard
             title="Mohit's Salary"
-            value={salary.total}
-            subtitle={`₹${salary.retainer.toLocaleString()} + ₹${salary.commission.toLocaleString()}`}
+            value={monthlyStats.salary.total}
+            subtitle={`₹${monthlyStats.salary.total.toLocaleString()}`}
             icon="chevron.right"
             variant="warning"
             style={styles.statCard}
@@ -96,9 +184,9 @@ export default function DashboardScreen() {
         <View style={styles.profitCard}>
           <View style={styles.profitContent}>
             <Text style={styles.profitLabel}>Your Net Profit</Text>
-            <Text style={styles.profitValue}>₹{getNetProfit().toLocaleString()}</Text>
+            <Text style={styles.profitValue}>₹{monthlyStats.netProfit.toLocaleString()}</Text>
             <Text style={styles.profitSubtitle}>
-              Revenue: ₹{getTotalRevenue().toLocaleString()} - Salary: ₹{salary.total.toLocaleString()}
+              Revenue: ₹{monthlyStats.revenue.toLocaleString()} - Salary: ₹{monthlyStats.salary.total.toLocaleString()}
             </Text>
           </View>
         </View>
@@ -122,7 +210,7 @@ export default function DashboardScreen() {
                 clientName={invoice.clientName}
                 amount={invoice.amount}
                 date={invoice.date}
-                dueDate={invoice.date}
+                dueDate={invoice.date} // Using same date as due date for now
                 status="paid"
                 onPress={() => handleInvoicePress(invoice.invoiceNo)}
               />
@@ -147,25 +235,14 @@ export default function DashboardScreen() {
           <View style={styles.smallSpacer} />
           
           {topClients.length > 0 ? (
-            topClients.map((client) => {
-              const clientInvoices = filteredInvoices.filter(inv => inv.clientId === client.id);
-              const totalRevenue = clientInvoices.reduce((sum, inv) => sum + inv.amount, 0);
-              const invoiceCount = clientInvoices.length;
-              const lastInvoice = clientInvoices.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-              
-              return (
-                <ClientCard
-                  key={client.id}
-                  name={client.name}
-                  type={client.type}
-                  email={client.notes || ''}
-                  totalRevenue={totalRevenue}
-                  invoiceCount={invoiceCount}
-                  lastInvoiceDate={lastInvoice?.date}
-                  onPress={() => handleClientPress(client.name)}
-                />
-              );
-            })
+            topClients.map((client) => (
+              <ClientCard
+                key={client.id}
+                client={client}
+                onDelete={() => {}} // Add delete handler if needed
+                style={styles.clientCard}
+              />
+            ))
           ) : (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No clients yet</Text>
@@ -197,6 +274,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f9fafb',
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6b7280',
   },
   scrollView: {
     flex: 1,
@@ -302,5 +387,8 @@ const styles = StyleSheet.create({
   emptySubtext: {
     fontSize: 14,
     color: '#9ca3af',
+  },
+  clientCard: {
+    marginBottom: 8,
   },
 });

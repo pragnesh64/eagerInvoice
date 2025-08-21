@@ -24,12 +24,36 @@ export interface Salary {
   total: number;        // capped at 60000
 }
 
+export interface MonthlyTrend {
+  month: string;
+  revenue: number;
+  salary: number;
+  netProfit: number;
+}
+
+export interface AllTimeSummary {
+  totalRevenue: number;
+  totalSalaryPaid: number;
+  totalNetProfit: number;
+  totalInvoices: number;
+  totalClients: number;
+}
+
 export interface ReportData {
+  // Current month summary
   monthlyRevenue: number;
   totalInvoices: number;
   totalClients: number;
   salary: Salary;
   netProfit: number;
+
+  // All-time summary
+  allTimeSummary: AllTimeSummary;
+
+  // Monthly trends (last 12 months)
+  monthlyTrends: MonthlyTrend[];
+
+  // Top performing clients
   topClients: Array<{
     clientId: string;
     clientName: string;
@@ -173,25 +197,29 @@ export const generateClientId = (): string => {
 
 // Salary calculation logic
 export const calculateSalary = (monthlyRevenue: number): Salary => {
-  const retainer = 15000; // Fixed retainer
+  const retainer = 15000; // Fixed monthly retainer
   let commission = 0;
   
   // Commission calculation based on revenue tiers
   if (monthlyRevenue <= 50000) {
-    commission = monthlyRevenue * 0.10; // 10% for first 50k
+    commission = monthlyRevenue * 0.10; // 10% up to ₹50,000
   } else if (monthlyRevenue <= 100000) {
-    commission = 5000 + (monthlyRevenue - 50000) * 0.15; // 10% on first 50k + 15% on rest
+    commission = (50000 * 0.10) + // 10% on first ₹50,000
+                ((monthlyRevenue - 50000) * 0.15); // 15% on ₹50,000-₹100,000
   } else {
-    commission = 12500 + (monthlyRevenue - 100000) * 0.20; // 10% on first 50k + 15% on next 50k + 20% on rest
+    commission = (50000 * 0.10) + // 10% on first ₹50,000
+                (50000 * 0.15) + // 15% on next ₹50,000
+                ((monthlyRevenue - 100000) * 0.20); // 20% above ₹100,000
   }
   
-  const total = Math.min(retainer + commission, 60000); // Cap at 60k
+  // Cap total salary at ₹60,000
+  const total = Math.min(retainer + commission, 60000);
   
   return {
     month: new Date().toISOString().slice(0, 7), // YYYY-MM format
     retainer,
-    commission: Math.min(commission, 45000), // Commission capped at 45k (60k - 15k retainer)
-    total,
+    commission: Math.round(commission), // Round commission to nearest rupee
+    total: Math.round(total), // Round total to nearest rupee
   };
 };
 
@@ -200,6 +228,29 @@ export const generateReportData = (): ReportData => {
   const monthlyRevenue = getTotalRevenue();
   const salary = calculateSalary(monthlyRevenue);
   const netProfit = monthlyRevenue - salary.total;
+  
+  // Calculate all-time summary
+  const allTimeSummary: AllTimeSummary = {
+    totalRevenue: getTotalRevenue(),
+    totalSalaryPaid: salary.total, // This is simplified for dummy data
+    totalNetProfit: netProfit,
+    totalInvoices: getTotalInvoices(),
+    totalClients: dummyClients.length,
+  };
+
+  // Generate monthly trends (dummy data for last 12 months)
+  const monthlyTrends: MonthlyTrend[] = Array.from({ length: 12 }, (_, i) => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - i);
+    const monthRevenue = monthlyRevenue * (0.8 + Math.random() * 0.4); // Random variation
+    const monthSalary = calculateSalary(monthRevenue).total;
+    return {
+      month: date.toISOString().slice(0, 7),
+      revenue: Math.round(monthRevenue),
+      salary: monthSalary,
+      netProfit: Math.round(monthRevenue - monthSalary),
+    };
+  }).reverse(); // Most recent month last
   
   // Calculate top clients
   const clientRevenue = dummyClients.map(client => {
@@ -219,6 +270,8 @@ export const generateReportData = (): ReportData => {
     totalClients: dummyClients.length,
     salary,
     netProfit,
+    allTimeSummary,
+    monthlyTrends,
     topClients: clientRevenue,
   };
 };

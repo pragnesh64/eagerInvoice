@@ -1,31 +1,54 @@
-import { Client, Invoice, ReportData } from '../data/dummyData';
+import { Client, Invoice } from '../database/models';
+
+interface MonthlyTrend {
+  month: string;
+  revenue: number;
+  salary: number;
+  netProfit: number;
+}
+
+interface TopClient {
+  clientId: string;
+  clientName: string;
+  revenue: number;
+  percentage: number;
+}
+
+interface ReportData {
+  monthlyRevenue: number;
+  totalInvoices: number;
+  totalClients: number;
+  salary: {
+    retainer: number;
+    commission: number;
+    total: number;
+  };
+  netProfit: number;
+  monthlyTrends: MonthlyTrend[];
+  topClients: TopClient[];
+  allTimeSummary: {
+    totalRevenue: number;
+    totalSalaryPaid: number;
+    totalNetProfit: number;
+  };
+}
 
 // CSV Export Functions
 export const exportClientsToCSV = (clients: Client[]): string => {
   const headers = [
     'ID',
     'Name',
-    'Email',
-    'Phone',
     'Type',
-    'Status',
-    'Total Revenue',
-    'Invoice Count',
-    'Last Invoice Date',
-    'Created At',
+    'Start Date',
+    'Notes',
   ];
 
   const rows = clients.map(client => [
     client.id,
     client.name,
-    client.email,
-    client.phone || '',
     client.type,
-    client.status,
-    client.totalRevenue.toString(),
-    client.invoiceCount.toString(),
-    client.lastInvoiceDate || '',
-    client.createdAt,
+    client.startDate,
+    client.notes || '',
   ]);
 
   return [headers, ...rows]
@@ -38,26 +61,14 @@ export const exportInvoicesToCSV = (invoices: Invoice[]): string => {
     'Invoice Number',
     'Client Name',
     'Amount',
-    'Tax',
-    'Total Amount',
-    'Issue Date',
-    'Due Date',
-    'Status',
-    'Description',
-    'Created At',
+    'Date',
   ];
 
   const rows = invoices.map(invoice => [
-    invoice.invoiceNumber,
+    invoice.invoiceNo,
     invoice.clientName,
     invoice.amount.toString(),
-    invoice.tax.toString(),
-    invoice.totalAmount.toString(),
-    invoice.issueDate,
-    invoice.dueDate,
-    invoice.status,
-    invoice.description,
-    invoice.createdAt,
+    invoice.date,
   ]);
 
   return [headers, ...rows]
@@ -73,15 +84,22 @@ export const exportReportToCSV = (reportData: ReportData): string => {
   ];
 
   const rows = [
-    ['Monthly Revenue', 'Total', reportData.monthlyRevenue.reduce((sum, month) => sum + month.revenue, 0).toString()],
-    ['Monthly Expenses', 'Total', reportData.monthlyRevenue.reduce((sum, month) => sum + month.expenses, 0).toString()],
-    ['Monthly Profit', 'Total', reportData.monthlyRevenue.reduce((sum, month) => sum + month.profit, 0).toString()],
-    ['Top Client', reportData.topClients[0]?.clientName || '', reportData.topClients[0]?.revenue.toString() || ''],
-    ['Paid Invoices', 'Amount', reportData.paymentStatus.paid.amount.toString()],
-    ['Pending Invoices', 'Amount', reportData.paymentStatus.pending.amount.toString()],
-    ['Overdue Invoices', 'Amount', reportData.paymentStatus.overdue.amount.toString()],
-    ['Total Invoices', 'Count', reportData.invoiceStats.total.toString()],
-    ['Outstanding Amount', 'Total', reportData.invoiceStats.outstanding.toString()],
+    // Current Month Summary
+    ['Monthly Revenue', reportData.monthlyRevenue.toString(), 'Current month total revenue'],
+    ['Monthly Salary', reportData.salary.total.toString(), `Retainer: ${reportData.salary.retainer}, Commission: ${reportData.salary.commission}`],
+    ['Monthly Net Profit', reportData.netProfit.toString(), 'Revenue - Salary'],
+
+    // All-time Summary
+    ['Total Revenue', reportData.allTimeSummary.totalRevenue.toString(), 'All-time total revenue'],
+    ['Total Salary Paid', reportData.allTimeSummary.totalSalaryPaid.toString(), 'All-time total salary'],
+    ['Total Net Profit', reportData.allTimeSummary.totalNetProfit.toString(), 'All-time net profit'],
+    ['Total Invoices', reportData.totalInvoices.toString(), 'Total number of invoices'],
+    ['Total Clients', reportData.totalClients.toString(), 'Total number of clients'],
+
+    // Top Clients
+    ...reportData.topClients.map((client, index) => 
+      [`Top Client ${index + 1}`, client.clientName, `Revenue: ${client.revenue} (${client.percentage.toFixed(1)}%)`]
+    ),
   ];
 
   return [headers, ...rows]
@@ -89,18 +107,37 @@ export const exportReportToCSV = (reportData: ReportData): string => {
     .join('\n');
 };
 
-// PDF Report Generation (Text-based for now, can be enhanced with react-native-pdf)
+// PDF Report Generation
 export const generatePDFReport = (reportData: ReportData): string => {
-  const formatCurrency = (amount: number) => `$${amount.toLocaleString()}`;
+  const formatCurrency = (amount: number) => `₹${amount.toLocaleString()}`;
   
   let report = 'EAGERINVOICE - BUSINESS REPORT\n';
   report += 'Generated on: ' + new Date().toLocaleDateString() + '\n\n';
   
-  // Monthly Overview
-  report += 'MONTHLY OVERVIEW\n';
-  report += '================\n';
-  reportData.monthlyRevenue.forEach(month => {
-    report += `${month.month}: Revenue ${formatCurrency(month.revenue)}, Expenses ${formatCurrency(month.expenses)}, Profit ${formatCurrency(month.profit)}\n`;
+  // Current Month Overview
+  report += 'CURRENT MONTH OVERVIEW\n';
+  report += '=====================\n';
+  report += `Revenue: ${formatCurrency(reportData.monthlyRevenue)}\n`;
+  report += `Salary: ${formatCurrency(reportData.salary.total)} (Retainer: ${formatCurrency(reportData.salary.retainer)}, Commission: ${formatCurrency(reportData.salary.commission)})\n`;
+  report += `Net Profit: ${formatCurrency(reportData.netProfit)}\n\n`;
+  
+  // All-time Summary
+  report += 'ALL-TIME SUMMARY\n';
+  report += '===============\n';
+  report += `Total Revenue: ${formatCurrency(reportData.allTimeSummary.totalRevenue)}\n`;
+  report += `Total Salary Paid: ${formatCurrency(reportData.allTimeSummary.totalSalaryPaid)}\n`;
+  report += `Total Net Profit: ${formatCurrency(reportData.allTimeSummary.totalNetProfit)}\n`;
+  report += `Total Invoices: ${reportData.totalInvoices}\n`;
+  report += `Total Clients: ${reportData.totalClients}\n\n`;
+  
+  // Monthly Trends
+  report += 'MONTHLY TRENDS\n';
+  report += '==============\n';
+  reportData.monthlyTrends.forEach(trend => {
+    report += `${trend.month}:\n`;
+    report += `  Revenue: ${formatCurrency(trend.revenue)}\n`;
+    report += `  Salary: ${formatCurrency(trend.salary)}\n`;
+    report += `  Net Profit: ${formatCurrency(trend.netProfit)}\n`;
   });
   report += '\n';
   
@@ -108,25 +145,8 @@ export const generatePDFReport = (reportData: ReportData): string => {
   report += 'TOP PERFORMING CLIENTS\n';
   report += '=====================\n';
   reportData.topClients.forEach((client, index) => {
-    report += `${index + 1}. ${client.clientName}: ${formatCurrency(client.revenue)} (${client.percentage}%)\n`;
+    report += `${index + 1}. ${client.clientName}: ${formatCurrency(client.revenue)} (${client.percentage.toFixed(1)}%)\n`;
   });
-  report += '\n';
-  
-  // Payment Status
-  report += 'PAYMENT STATUS\n';
-  report += '==============\n';
-  report += `Paid: ${formatCurrency(reportData.paymentStatus.paid.amount)} (${reportData.paymentStatus.paid.percentage}%)\n`;
-  report += `Pending: ${formatCurrency(reportData.paymentStatus.pending.amount)} (${reportData.paymentStatus.pending.percentage}%)\n`;
-  report += `Overdue: ${formatCurrency(reportData.paymentStatus.overdue.amount)} (${reportData.paymentStatus.overdue.percentage}%)\n`;
-  report += '\n';
-  
-  // Invoice Statistics
-  report += 'INVOICE STATISTICS\n';
-  report += '==================\n';
-  report += `Total Invoices: ${reportData.invoiceStats.total}\n`;
-  report += `This Month: ${reportData.invoiceStats.thisMonth}\n`;
-  report += `This Year: ${reportData.invoiceStats.thisYear}\n`;
-  report += `Outstanding: ${formatCurrency(reportData.invoiceStats.outstanding)}\n`;
   
   return report;
 };
@@ -134,32 +154,13 @@ export const generatePDFReport = (reportData: ReportData): string => {
 // Data Download Functions
 export const downloadCSV = (data: string, filename: string) => {
   // In a real app, you would use react-native-fs or similar
-  // For now, we'll just log the data
   console.log(`Downloading ${filename}:`);
   console.log(data);
-  
-  // You can implement actual file download using:
-  // - react-native-fs for file system operations
-  // - react-native-share for sharing files
-  // - react-native-blob-util for blob handling
 };
 
 export const downloadPDF = (data: string, filename: string) => {
   // In a real app, you would use react-native-pdf or similar
   console.log(`Downloading ${filename}:`);
-  console.log(data);
-};
-
-// Email Export Functions
-export const emailCSV = (data: string, filename: string) => {
-  // In a real app, you would use react-native-mail or similar
-  console.log(`Emailing ${filename}:`);
-  console.log(data);
-};
-
-export const emailPDF = (data: string, filename: string) => {
-  // In a real app, you would use react-native-mail or similar
-  console.log(`Emailing ${filename}:`);
   console.log(data);
 };
 

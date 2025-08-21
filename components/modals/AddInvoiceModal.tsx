@@ -1,8 +1,16 @@
-import React, { useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useData } from '../../context/DataContext';
-import { generateInvoiceNumber } from '../../data/dummyData';
-import { Button, Dropdown } from '../ui';
+import React, { useEffect, useState } from 'react';
+import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useDatabase } from '../../context/DatabaseContext';
+import { Button } from '../ui/Button';
+import { DatePicker } from '../ui/DatePicker';
+import { Dropdown } from '../ui/Dropdown';
+import { Input } from '../ui/Input';
+
+interface Client {
+  id: string;
+  name: string;
+  type: 'Micro' | 'Mid' | 'Core' | 'Large Retainer';
+}
 
 interface AddInvoiceModalProps {
   visible: boolean;
@@ -10,18 +18,43 @@ interface AddInvoiceModalProps {
 }
 
 export function AddInvoiceModal({ visible, onClose }: AddInvoiceModalProps) {
-  const { addInvoice, clients } = useData();
+  const { clients, invoices } = useDatabase();
+  const [clientList, setClientList] = useState<Client[]>([]);
   const [formData, setFormData] = useState({
     clientId: '',
-    invoiceNo: generateInvoiceNumber(),
+    invoiceNo: '',
     amount: '',
-    date: new Date().toISOString().split('T')[0], // Today's date
+    date: new Date(),
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(true);
 
-  const updateFormData = (field: keyof typeof formData, value: string) => {
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      const allClients = await clients.getAll();
+      setClientList(allClients || []);
+
+      const latestInvoiceNo = await invoices.getLatestInvoiceNumber();
+      const nextInvoiceNo = latestInvoiceNo ? 
+        `INV-${(parseInt(latestInvoiceNo.split('-')[1]) + 1).toString().padStart(3, '0')}` : 
+        'INV-001';
+
+      setFormData(prev => ({ ...prev, invoiceNo: nextInvoiceNo }));
+    } catch (error) {
+      console.error('Error loading data:', error);
+      Alert.alert('Error', 'Failed to load data. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateFormData = (field: keyof typeof formData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
@@ -47,141 +80,147 @@ export function AddInvoiceModal({ visible, onClose }: AddInvoiceModalProps) {
       }
     }
 
-    if (!formData.date) {
-      newErrors.date = 'Date is required';
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validateForm()) {
       return;
     }
 
     try {
-      const selectedClient = clients.find(client => client.id === formData.clientId);
-      if (!selectedClient) {
-        Alert.alert('Error', 'Selected client not found.');
-        return;
-      }
-
-      addInvoice({
+      await invoices.create({
         clientId: formData.clientId,
-        clientName: selectedClient.name,
         invoiceNo: formData.invoiceNo.trim(),
         amount: parseFloat(formData.amount),
-        date: formData.date,
+        date: formData.date.toISOString().split('T')[0],
       });
 
-      // Reset form
-      setFormData({
+      await loadData();
+      setFormData(prev => ({
+        ...prev,
         clientId: '',
-        invoiceNo: generateInvoiceNumber(),
         amount: '',
-        date: new Date().toISOString().split('T')[0],
-      });
+        date: new Date(),
+      }));
       setErrors({});
 
       Alert.alert('Success', 'Invoice added successfully!');
       onClose();
     } catch (error) {
+      console.error('Error adding invoice:', error);
       Alert.alert('Error', 'Failed to add invoice. Please try again.');
     }
   };
 
   const handleCancel = () => {
-    // Reset form
     setFormData({
       clientId: '',
-      invoiceNo: generateInvoiceNumber(),
+      invoiceNo: '',
       amount: '',
-      date: new Date().toISOString().split('T')[0],
+      date: new Date(),
     });
     setErrors({});
     onClose();
   };
 
-  const clientOptions = clients.map(client => ({
+  const clientOptions = clientList.map(client => ({
     label: `${client.name} (${client.type})`,
     value: client.id,
   }));
 
+  if (isLoading) {
+    return (
+      <Modal
+        visible={visible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={handleCancel}
+      >
+        <View style={styles.centeredView}>
+          <View style={[styles.modalView, styles.loadingContainer]}>
+            <Text style={styles.loadingText}>Loading...</Text>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
   return (
     <Modal
       visible={visible}
+      transparent={true}
       animationType="slide"
-      presentationStyle="pageSheet"
       onRequestClose={handleCancel}
     >
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Add New Invoice</Text>
-          <Button title="Cancel" variant="ghost" size="sm" onPress={handleCancel} />
-        </View>
+      <View style={styles.centeredView}>
+        <View style={styles.modalView}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Add New Invoice</Text>
+            <Button 
+              title="Cancel" 
+              variant="ghost" 
+              size="sm" 
+              onPress={handleCancel}
+            />
+          </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.form}>
-            {/* Client Selection */}
-            <View style={styles.field}>
+          <ScrollView 
+            style={styles.formScrollView}
+            contentContainerStyle={styles.formContainer}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.inputContainer}>
               <Dropdown
                 label="Client *"
                 options={clientOptions}
                 value={formData.clientId}
                 onValueChange={(value) => updateFormData('clientId', value)}
                 placeholder="Select a client"
+                error={errors.clientId}
                 searchable={true}
               />
-              {errors.clientId && <Text style={styles.errorText}>{errors.clientId}</Text>}
             </View>
 
-            {/* Invoice Number */}
-            <View style={styles.field}>
-              <Text style={styles.label}>Invoice Number *</Text>
-              <TextInput
-                style={[styles.input, errors.invoiceNo && styles.inputError]}
+            <View style={styles.inputContainer}>
+              <Input
+                label="Invoice Number *"
                 value={formData.invoiceNo}
                 onChangeText={(value) => updateFormData('invoiceNo', value)}
                 placeholder="Enter invoice number"
-                placeholderTextColor="#9ca3af"
+                error={errors.invoiceNo}
               />
-              {errors.invoiceNo && <Text style={styles.errorText}>{errors.invoiceNo}</Text>}
             </View>
 
-            {/* Amount */}
-            <View style={styles.field}>
-              <Text style={styles.label}>Amount (₹) *</Text>
-              <TextInput
-                style={[styles.input, errors.amount && styles.inputError]}
+            <View style={styles.inputContainer}>
+              <Input
+                label="Amount (₹) *"
                 value={formData.amount}
                 onChangeText={(value) => updateFormData('amount', value)}
                 placeholder="Enter amount"
-                placeholderTextColor="#9ca3af"
                 keyboardType="numeric"
+                error={errors.amount}
               />
-              {errors.amount && <Text style={styles.errorText}>{errors.amount}</Text>}
             </View>
 
-            {/* Date */}
-            <View style={styles.field}>
-              <Text style={styles.label}>Date *</Text>
-              <TextInput
-                style={[styles.input, errors.date && styles.inputError]}
+            <View style={styles.inputContainer}>
+              <DatePicker
+                label="Date *"
                 value={formData.date}
-                onChangeText={(value) => updateFormData('date', value)}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor="#9ca3af"
+                onChange={(date) => updateFormData('date', date)}
               />
-              {errors.date && <Text style={styles.errorText}>{errors.date}</Text>}
             </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Button title="Add Invoice" variant="primary" onPress={handleSubmit} />
+          <View style={styles.modalFooter}>
+            <Button
+              title="Add Invoice"
+              variant="primary"
+              onPress={handleSubmit}
+              style={styles.submitButton}
+            />
+          </View>
         </View>
       </View>
     </Modal>
@@ -189,60 +228,63 @@ export function AddInvoiceModal({ visible, onClose }: AddInvoiceModalProps) {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  centeredView: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end', // This will make the modal slide up from bottom
   },
-  header: {
+  modalView: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    height: '85%', // Increased height
+    width: '100%',
+    overflow: 'hidden',
+  },
+  loadingContainer: {
+    padding: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 300,
+  },
+  loadingText: {
+    fontSize: 18,
+    color: '#6b7280',
+  },
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
+    paddingTop: 25,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
   },
-  title: {
-    fontSize: 18,
+  modalTitle: {
+    fontSize: 24,
     fontWeight: '600',
     color: '#111827',
   },
-  content: {
-    flex: 1,
+  formScrollView: {
+    flex: 1, // Changed to flex 1 to take remaining space
   },
-  form: {
-    padding: 16,
+  formContainer: {
+    padding: 20,
+    paddingTop: 25,
+    gap: 24, // Added gap between form elements
   },
-  field: {
-    marginBottom: 20,
+  inputContainer: {
+    marginBottom: 0, // Removed margin bottom since we're using gap
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: '#111827',
-  },
-  inputError: {
-    borderColor: '#dc2626',
-  },
-  errorText: {
-    color: '#dc2626',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  footer: {
-    padding: 16,
+  modalFooter: {
+    padding: 20,
+    paddingBottom: 30, // Increased bottom padding
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
+  },
+  submitButton: {
+    width: '100%',
+    height: 50, // Increased button height
   },
 });
+

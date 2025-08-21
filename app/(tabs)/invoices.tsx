@@ -1,22 +1,103 @@
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Button, Dropdown, InvoiceCard, StatCard } from '../../components';
+import { Button, InvoiceCard, StatCard } from '../../components';
 import { AddInvoiceModal } from '../../components/modals/AddInvoiceModal';
-import { useData } from '../../context/DataContext';
+import { Dropdown } from '../../components/ui/Dropdown';
+import { useDatabase } from '../../context/DatabaseContext';
+
+interface Client {
+  id: string;
+  name: string;
+  type: 'Micro' | 'Mid' | 'Core' | 'Large Retainer';
+  startDate: string;
+  notes?: string;
+}
+
+interface Invoice {
+  id: string;
+  clientId: string;
+  invoiceNo: string;
+  clientName: string;
+  amount: number;
+  date: string;
+}
 
 export default function InvoicesScreen() {
-  const { 
-    filteredInvoices, 
-    getTotalInvoices, 
-    getTotalRevenue, 
-    setInvoiceFilter,
-    clients 
-  } = useData();
+  const { clients, invoices, reports } = useDatabase();
   
+  const [clientList, setClientList] = useState<Client[]>([]);
+  const [invoiceList, setInvoiceList] = useState<Invoice[]>([]);
+  const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
   const [showAddInvoiceModal, setShowAddInvoiceModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClient, setSelectedClient] = useState<string>('all');
+  const [isLoading, setIsLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalInvoices: 0,
+    totalRevenue: 0,
+  });
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    filterInvoices();
+  }, [searchQuery, selectedClient, invoiceList]);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Load clients
+      const allClients = await clients.getAll();
+      setClientList(allClients as Client[]);
+
+      // Load invoices
+      const allInvoices = await invoices.getAll();
+      setInvoiceList(allInvoices.map(invoice => ({
+        id: invoice.id,
+        clientId: invoice.client_id,
+        invoiceNo: invoice.invoice_no,
+        clientName: invoice.client_name || 'Unknown Client',
+        amount: invoice.amount,
+        date: invoice.date,
+      })));
+
+      // Load stats
+      const allTimeStats = await reports.getAllTimeStats();
+      setStats({
+        totalInvoices: allTimeStats.totalInvoices,
+        totalRevenue: allTimeStats.totalRevenue,
+      });
+
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const filterInvoices = () => {
+    let filtered = [...invoiceList];
+
+    // Apply search filter
+    if (searchQuery) {
+      const searchLower = searchQuery.toLowerCase();
+      filtered = filtered.filter(invoice => 
+        invoice.invoiceNo.toLowerCase().includes(searchLower) ||
+        invoice.clientName.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Apply client filter
+    if (selectedClient !== 'all') {
+      filtered = filtered.filter(invoice => invoice.clientId === selectedClient);
+    }
+
+    setFilteredInvoices(filtered);
+  };
 
   const handleInvoicePress = (invoiceNumber: string) => {
     console.log('Invoice pressed:', invoiceNumber);
@@ -28,38 +109,32 @@ export default function InvoicesScreen() {
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    updateFilters(query, selectedClient);
   };
 
   const handleClientFilter = (clientId: string) => {
     setSelectedClient(clientId);
-    updateFilters(searchQuery, clientId);
-  };
-
-  const updateFilters = (search: string, clientId: string) => {
-    setInvoiceFilter({
-      search: search || undefined,
-      clientId: clientId === 'all' ? undefined : clientId,
-    });
   };
 
   const clearFilters = () => {
     setSearchQuery('');
     setSelectedClient('all');
-    setInvoiceFilter({});
   };
-
-  // Calculate statistics
-  const totalRevenue = getTotalRevenue();
-  const totalInvoices = getTotalInvoices();
 
   const clientOptions = [
     { label: 'All Clients', value: 'all' },
-    ...clients.map(client => ({
+    ...clientList.map(client => ({
       label: client.name,
       value: client.id,
     })),
   ];
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -82,7 +157,7 @@ export default function InvoicesScreen() {
         <View style={styles.statsRow}>
           <StatCard
             title="Total Invoices"
-            value={totalInvoices}
+            value={stats.totalInvoices}
             subtitle="All time"
             icon="house.fill"
             variant="primary"
@@ -90,7 +165,7 @@ export default function InvoicesScreen() {
           />
           <StatCard
             title="Total Revenue"
-            value={totalRevenue}
+            value={stats.totalRevenue}
             subtitle="All time"
             icon="chevron.right"
             variant="warning"
@@ -148,10 +223,10 @@ export default function InvoicesScreen() {
             <InvoiceCard
               key={invoice.id}
               invoiceNumber={invoice.invoiceNo}
-              clientName={invoice.clientName}
+              clientName={invoice.clientName || 'Unknown Client'}
               amount={invoice.amount}
               date={invoice.date}
-              dueDate={invoice.date}
+              dueDate={invoice.date} // Using same date as due date for now
               status="paid"
               onPress={() => handleInvoicePress(invoice.invoiceNo)}
             />
@@ -179,7 +254,10 @@ export default function InvoicesScreen() {
       {/* Add Invoice Modal */}
       <AddInvoiceModal
         visible={showAddInvoiceModal}
-        onClose={() => setShowAddInvoiceModal(false)}
+        onClose={() => {
+          setShowAddInvoiceModal(false);
+          loadData(); // Reload data after adding invoice
+        }}
       />
     </View>
   );
@@ -189,6 +267,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f9fafb',
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6b7280',
   },
   scrollView: {
     flex: 1,
