@@ -1,7 +1,11 @@
-import { Picker } from '@react-native-picker/picker';
-import React, { useState } from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Button } from './Button';
+import { Picker } from "@react-native-picker/picker";
+import React, { useState } from "react";
+import {
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 interface Option {
   label: string;
@@ -15,7 +19,7 @@ export interface DropdownProps {
   onValueChange: (value: string) => void;
   placeholder?: string;
   error?: string;
-  searchable?: boolean;
+  helperText?: string;
 }
 
 export function Dropdown({
@@ -23,171 +27,104 @@ export function Dropdown({
   options,
   value,
   onValueChange,
-  placeholder = 'Select an option',
+  placeholder = "Select an option",
   error,
-  searchable = false,
+  helperText,
 }: DropdownProps) {
-  const [show, setShow] = useState(false);
-  const [tempValue, setTempValue] = useState(value);
-
-  const selectedOption = options.find(option => option.value === value);
-
-  const handleConfirm = () => {
-    onValueChange(tempValue);
-    setShow(false);
-  };
-
-  const handleCancel = () => {
-    setTempValue(value);
-    setShow(false);
-  };
-
-  const showPicker = () => {
-    setTempValue(value);
-    setShow(true);
-  };
+  const [isFocused, setIsFocused] = useState(false);
 
   return (
     <View style={styles.container}>
-      {label && <Text style={styles.label}>{label}</Text>}
-      
-      <TouchableOpacity
-        style={[styles.input, error && styles.inputError]}
-        onPress={showPicker}
-      >
-        <Text style={[
-          styles.text,
-          !selectedOption && styles.placeholder
-        ]}>
-          {selectedOption ? selectedOption.label : placeholder}
+      {label && (
+        <Text style={[styles.label, error && styles.labelError]}>
+          {label}
         </Text>
-      </TouchableOpacity>
+      )}
 
-      {error && <Text style={styles.errorText}>{error}</Text>}
-
-      <Modal
-        visible={show}
-        transparent
-        animationType="fade"
+      <View
+        style={[
+          styles.input,
+          isFocused && styles.inputFocused,
+          error && styles.inputError,
+        ]}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{label || 'Select Option'}</Text>
-            </View>
+        <Picker
+          selectedValue={value}
+          onValueChange={(val) => {
+            onValueChange(val);
+            setIsFocused(false);
+          }}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          style={styles.picker}
+          dropdownIconColor={error ? "#f87171" : "#9ca3af"}
+        >
+          <Picker.Item label={placeholder} value="" color="#9ca3af" />
+          {options.map((option) => (
+            <Picker.Item
+              key={option.value}
+              label={option.label}
+              value={option.value}
+            />
+          ))}
+        </Picker>
+      </View>
 
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={tempValue}
-                onValueChange={setTempValue}
-                style={styles.picker}
-              >
-                <Picker.Item
-                  label={placeholder}
-                  value=""
-                  color="#9ca3af"
-                />
-                {options.map((option) => (
-                  <Picker.Item
-                    key={option.value}
-                    label={option.label}
-                    value={option.value}
-                    color="#111827"
-                  />
-                ))}
-              </Picker>
-            </View>
-
-            <View style={styles.modalFooter}>
-              <Button 
-                title="Cancel"
-                variant="ghost"
-                onPress={handleCancel}
-                style={styles.footerButton}
-              />
-              <Button
-                title="Confirm"
-                variant="primary"
-                onPress={handleConfirm}
-                style={styles.footerButton}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {error ? (
+        <Text style={styles.errorText}>{error}</Text>
+      ) : helperText ? (
+        <Text style={styles.helperText}>{helperText}</Text>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    width: '100%',
+    width: "100%",
+    marginBottom: 16,
   },
   label: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-    marginBottom: 8,
+    fontWeight: "500",
+    color: "#e5e7eb", // same as Input label
+    marginBottom: 6,
+  },
+  labelError: {
+    color: "#f87171", // red-400 for error
   },
   input: {
-    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    padding: 12,
-    height: 44,
-    justifyContent: 'center',
+    borderColor: "#374151", // gray-700
+    borderRadius: 10,
+    backgroundColor: "#111827", // dark background
+    overflow: "hidden",
+    minHeight: 46,
+    justifyContent: "center",
+  },
+  inputFocused: {
+    borderColor: "#3b82f6", // blue-500
+    borderWidth: 2,
+    shadowColor: "#3b82f6",
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
   },
   inputError: {
-    borderColor: '#dc2626',
+    borderColor: "#f87171",
   },
-  text: {
-    fontSize: 16,
-    color: '#111827',
-  },
-  placeholder: {
-    color: '#9ca3af',
+  picker: {
+    height: Platform.OS === "ios" ? 180 : 50,
+    color: "#f9fafb", // text same as Input
   },
   errorText: {
-    color: '#dc2626',
+    color: "#f87171",
     fontSize: 12,
     marginTop: 4,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
+  helperText: {
+    color: "#9ca3af",
+    fontSize: 12,
+    marginTop: 4,
   },
-  modalContent: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    width: '100%',
-    maxWidth: 400,
-    padding: 16,
-  },
-  modalHeader: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  pickerContainer: {
-    marginBottom: 16,
-  },
-  picker: {
-    height: 200,
-  },
-  modalFooter: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  footerButton: {
-    minWidth: 100,
-  },
-}); 
+});

@@ -5,7 +5,7 @@ import { useColorScheme } from '../../hooks/useColorScheme';
 import { IconSymbol } from './IconSymbol';
 
 interface FloatingActionButtonProps {
-  icon: 'house.fill' | 'paperplane.fill' | 'chevron.left.forwardslash.chevron.right' | 'chevron.right';
+  icon: 'house.fill' | 'paperplane.fill' | 'chevron.left.forwardslash.chevron.right' | 'chevron.right' | 'plus';
   onPress: () => void;
   size?: 'sm' | 'md' | 'lg';
   variant?: 'primary' | 'secondary' | 'success' | 'warning' | 'error';

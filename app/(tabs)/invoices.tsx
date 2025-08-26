@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button, InvoiceCard, StatCard } from '../../components';
 import { AddInvoiceModal } from '../../components/modals/AddInvoiceModal';
 import { Dropdown } from '../../components/ui/Dropdown';
@@ -12,6 +12,7 @@ interface Client {
   type: 'Micro' | 'Mid' | 'Core' | 'Large Retainer';
   startDate: string;
   notes?: string;
+  createdAt: string;
 }
 
 interface Invoice {
@@ -52,15 +53,22 @@ export default function InvoicesScreen() {
       
       // Load clients
       const allClients = await clients.getAll();
-      setClientList(allClients as Client[]);
+      setClientList(allClients.map(client => ({
+        id: client.id,
+        name: client.name,
+        type: client.type,
+        startDate: client.startDate,
+        notes: client.notes,
+        createdAt: client.createdAt
+      })));
 
       // Load invoices
       const allInvoices = await invoices.getAll();
       setInvoiceList(allInvoices.map(invoice => ({
         id: invoice.id,
-        clientId: invoice.client_id,
-        invoiceNo: invoice.invoice_no,
-        clientName: invoice.client_name || 'Unknown Client',
+        clientId: invoice.clientId,
+        invoiceNo: invoice.invoiceNo,
+        clientName: invoice.clientName || 'Unknown Client',
         amount: invoice.amount,
         date: invoice.date,
       })));
@@ -107,6 +115,11 @@ export default function InvoicesScreen() {
     setShowAddInvoiceModal(true);
   };
 
+  // Refresh data function
+  const refreshData = () => {
+    loadData();
+  };
+
   const handleSearch = (query: string) => {
     setSearchQuery(query);
   };
@@ -144,6 +157,8 @@ export default function InvoicesScreen() {
         style={styles.scrollView} 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
       >
         {/* Header */}
         <View style={styles.header}>
@@ -183,6 +198,10 @@ export default function InvoicesScreen() {
             onChangeText={handleSearch}
             placeholder="Search invoices..."
             placeholderTextColor="#9ca3af"
+            returnKeyType="search"
+            clearButtonMode={Platform.OS === 'ios' ? 'while-editing' : 'never'}
+            autoCapitalize="none"
+            autoCorrect={false}
           />
           
           <View style={styles.filterSection}>
@@ -192,7 +211,6 @@ export default function InvoicesScreen() {
               value={selectedClient}
               onValueChange={handleClientFilter}
               placeholder="Select client"
-              searchable={true}
             />
           </View>
 
@@ -258,6 +276,7 @@ export default function InvoicesScreen() {
           setShowAddInvoiceModal(false);
           loadData(); // Reload data after adding invoice
         }}
+        onRefresh={refreshData}
       />
     </View>
   );
@@ -281,7 +300,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingTop: 50,
+    paddingTop: Platform.OS === 'ios' ? 60 : 50,
+    paddingBottom: Platform.OS === 'ios' ? 100 : 80,
   },
   header: {
     marginBottom: 4,
@@ -334,6 +354,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#111827',
     marginBottom: 16,
+    ...Platform.select({
+      ios: {
+        paddingVertical: 12,
+      },
+      android: {
+        paddingVertical: 8,
+      },
+    }),
   },
   filterSection: {
     marginBottom: 16,

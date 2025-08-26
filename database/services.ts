@@ -40,7 +40,10 @@ export const ClientService = {
 
     getById: (id: string) => DatabaseUtils.select('clients', { id })[0],
 
-    getAll: () => DatabaseUtils.select('clients', undefined, { field: 'name', direction: 'ASC' }),
+    getAll: () => {
+        const results = DatabaseUtils.select('clients', undefined, { field: 'created_at', direction: 'DESC' });
+        return results;
+    },
 
     getByType: (type: string) => DatabaseUtils.select('clients', { type }),
 };
@@ -69,14 +72,15 @@ export const InvoiceService = {
     },
 
     getAll: () => {
-        return DatabaseUtils.query(`
+        const results = DatabaseUtils.query(`
             SELECT 
                 i.*,
                 c.name as client_name
             FROM invoices i
             LEFT JOIN clients c ON i.client_id = c.id
-            ORDER BY i.date DESC
+            ORDER BY i.created_at DESC
         `);
+        return results;
     },
 
     getByClientId: (clientId: string) => 

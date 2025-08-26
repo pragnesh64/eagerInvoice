@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Colors } from '../../constants/Colors';
 import { useDatabase } from '../../context/DatabaseContext';
+import { useColorScheme } from '../../hooks/useColorScheme';
 import { Button } from '../ui/Button';
 import { DatePicker } from '../ui/DatePicker';
 import { Dropdown } from '../ui/Dropdown';
@@ -10,15 +12,19 @@ interface Client {
   id: string;
   name: string;
   type: 'Micro' | 'Mid' | 'Core' | 'Large Retainer';
+  createdAt: string;
 }
 
 interface AddInvoiceModalProps {
   visible: boolean;
   onClose: () => void;
+  onRefresh?: () => void;
 }
 
-export function AddInvoiceModal({ visible, onClose }: AddInvoiceModalProps) {
+export function AddInvoiceModal({ visible, onClose, onRefresh }: AddInvoiceModalProps) {
   const { clients, invoices } = useDatabase();
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
   const [clientList, setClientList] = useState<Client[]>([]);
   const [formData, setFormData] = useState({
     clientId: '',
@@ -37,7 +43,12 @@ export function AddInvoiceModal({ visible, onClose }: AddInvoiceModalProps) {
     try {
       setIsLoading(true);
       const allClients = await clients.getAll();
-      setClientList(allClients || []);
+      setClientList(allClients.map(client => ({
+        id: client.id,
+        name: client.name,
+        type: client.type,
+        createdAt: client.createdAt
+      })));
 
       const latestInvoiceNo = await invoices.getLatestInvoiceNumber();
       const nextInvoiceNo = latestInvoiceNo ? 
@@ -97,17 +108,14 @@ export function AddInvoiceModal({ visible, onClose }: AddInvoiceModalProps) {
         date: formData.date.toISOString().split('T')[0],
       });
 
-      await loadData();
-      setFormData(prev => ({
-        ...prev,
-        clientId: '',
-        amount: '',
-        date: new Date(),
-      }));
-      setErrors({});
-
       Alert.alert('Success', 'Invoice added successfully!');
-      onClose();
+      
+      // Refresh the parent component's data
+      if (onRefresh) {
+        onRefresh();
+      }
+      
+      handleCancel();
     } catch (error) {
       console.error('Error adding invoice:', error);
       Alert.alert('Error', 'Failed to add invoice. Please try again.');
@@ -139,8 +147,8 @@ export function AddInvoiceModal({ visible, onClose }: AddInvoiceModalProps) {
         onRequestClose={handleCancel}
       >
         <View style={styles.centeredView}>
-          <View style={[styles.modalView, styles.loadingContainer]}>
-            <Text style={styles.loadingText}>Loading...</Text>
+          <View style={[styles.modalView, styles.loadingContainer, { backgroundColor: colors.background }]}>
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading...</Text>
           </View>
         </View>
       </Modal>
@@ -155,9 +163,9 @@ export function AddInvoiceModal({ visible, onClose }: AddInvoiceModalProps) {
       onRequestClose={handleCancel}
     >
       <View style={styles.centeredView}>
-        <View style={styles.modalView}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add New Invoice</Text>
+        <View style={[styles.modalView, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Add New Invoice</Text>
             <Button 
               title="Cancel" 
               variant="ghost" 
@@ -174,12 +182,11 @@ export function AddInvoiceModal({ visible, onClose }: AddInvoiceModalProps) {
             <View style={styles.inputContainer}>
               <Dropdown
                 label="Client *"
-                options={clientOptions}
+                options={clientList.map(client => ({ label: client.name, value: client.id }))}
                 value={formData.clientId}
                 onValueChange={(value) => updateFormData('clientId', value)}
                 placeholder="Select a client"
                 error={errors.clientId}
-                searchable={true}
               />
             </View>
 
@@ -213,7 +220,7 @@ export function AddInvoiceModal({ visible, onClose }: AddInvoiceModalProps) {
             </View>
           </ScrollView>
 
-          <View style={styles.modalFooter}>
+          <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
             <Button
               title="Add Invoice"
               variant="primary"
@@ -231,13 +238,12 @@ const styles = StyleSheet.create({
   centeredView: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end', // This will make the modal slide up from bottom
+    justifyContent: 'flex-end',
   },
   modalView: {
-    backgroundColor: 'white',
     borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
-    height: '85%', // Increased height
+    height: '85%',
     width: '100%',
     overflow: 'hidden',
   },
@@ -249,7 +255,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 18,
-    color: '#6b7280',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -258,33 +263,30 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 25,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
   },
   modalTitle: {
     fontSize: 24,
     fontWeight: '600',
-    color: '#111827',
   },
   formScrollView: {
-    flex: 1, // Changed to flex 1 to take remaining space
+    flex: 1,
   },
   formContainer: {
     padding: 20,
     paddingTop: 25,
-    gap: 24, // Added gap between form elements
+    gap: 24,
   },
   inputContainer: {
-    marginBottom: 0, // Removed margin bottom since we're using gap
+    marginBottom: 0,
   },
   modalFooter: {
     padding: 20,
-    paddingBottom: 30, // Increased bottom padding
+    paddingBottom: 30,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
   },
   submitButton: {
     width: '100%',
-    height: 50, // Increased button height
+    height: 50,
   },
 });
 

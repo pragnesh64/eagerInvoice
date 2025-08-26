@@ -1,10 +1,10 @@
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   Button,
   ClientCard,
-  FloatingActionButton,
   InvoiceCard,
   StatCard
 } from '../../components';
@@ -17,6 +17,7 @@ interface Client {
   type: 'Micro' | 'Mid' | 'Core' | 'Large Retainer';
   startDate: string;
   notes?: string;
+  createdAt: string;
 }
 
 interface Invoice {
@@ -43,6 +44,7 @@ const DEFAULT_SALARY: SalaryData = {
 
 export default function DashboardScreen() {
   const { clients, invoices, salary, reports } = useDatabase();
+  const router = useRouter();
 
   const [clientList, setClientList] = useState<Client[]>([]);
   const [invoiceList, setInvoiceList] = useState<Invoice[]>([]);
@@ -62,30 +64,28 @@ export default function DashboardScreen() {
     try {
       setIsLoading(true);
       
-      // Load clients
       const allClients = await clients.getAll();
       setClientList(allClients.map(client => ({
         id: client.id,
         name: client.name,
         type: client.type,
-        startDate: client.start_date,
-        notes: client.notes
+        startDate: client.startDate,
+        notes: client.notes,
+        createdAt: client.createdAt
       })));
 
-      // Load invoices with client names
       const allInvoices = await invoices.getAll();
       const mappedInvoices = allInvoices.map(invoice => ({
         id: invoice.id,
-        clientId: invoice.client_id,
-        invoiceNo: invoice.invoice_no,
-        clientName: invoice.client_name || 'Unknown Client',
+        clientId: invoice.clientId,
+        invoiceNo: invoice.invoiceNo,
+        clientName: invoice.clientName || 'Unknown Client',
         amount: invoice.amount,
         date: invoice.date,
         totalRevenue: 0 // Added for client sorting
       }));
       setInvoiceList(mappedInvoices);
 
-      // Load monthly stats
       const currentMonth = new Date().toISOString().slice(0, 7);
       const monthOverview = await reports.getMonthlyOverview(currentMonth);
       const monthSalaryData = await salary.getByMonth(currentMonth);
@@ -120,17 +120,28 @@ export default function DashboardScreen() {
     console.log('Client pressed:', clientName);
   };
 
-  // Get recent invoices (last 3)
+  const refreshData = () => {
+    loadData();
+  };
+
+  // Get recent invoices (last 3) - already sorted by creation date from database
   const recentInvoices = invoiceList.slice(0, 3);
   
-  // Get top clients (by revenue, last 2)
+  // Get top clients (by revenue, last 2) - but show most recent first if revenue is same
   const topClients = clientList
     .map(client => {
       const clientInvoices = invoiceList.filter(inv => inv.clientId === client.id);
       const totalRevenue = clientInvoices.reduce((sum, inv) => sum + inv.amount, 0);
       return { ...client, totalRevenue };
     })
-    .sort((a, b) => (b.totalRevenue || 0) - (a.totalRevenue || 0))
+    .sort((a, b) => {
+      // First sort by revenue (highest first)
+      const revenueDiff = (b.totalRevenue || 0) - (a.totalRevenue || 0);
+      if (revenueDiff !== 0) return revenueDiff;
+      
+      // If revenue is same, sort by creation date (newest first)
+      return new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime();
+    })
     .slice(0, 2);
 
   if (isLoading) {
@@ -150,7 +161,6 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.mainTitle}>Dashboard</Text>
           <Text style={styles.subtitle}>Welcome back! Here's your overview.</Text>
@@ -180,7 +190,6 @@ export default function DashboardScreen() {
 
         <View style={styles.spacer} />
 
-        {/* Net Profit */}
         <View style={styles.profitCard}>
           <View style={styles.profitContent}>
             <Text style={styles.profitLabel}>Your Net Profit</Text>
@@ -193,11 +202,10 @@ export default function DashboardScreen() {
 
         <View style={styles.spacer} />
 
-        {/* Recent Invoices */}
-        <View style={styles.cardContainer}>
+        <View>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Invoices</Text>
-            <Button title="View All" variant="outline" size="sm" onPress={() => {}} />
+            <Button title="View All" variant="outline" size="sm" onPress={() => router.push('/invoices')} />
           </View>
           
           <View style={styles.smallSpacer} />
@@ -226,10 +234,10 @@ export default function DashboardScreen() {
         <View style={styles.spacer} />
 
         {/* Top Clients */}
-        <View style={styles.cardContainer}>
+        <View>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Top Clients</Text>
-            <Button title="View All" variant="outline" size="sm" onPress={() => {}} />
+            <Button title="View All" variant="outline" size="sm" onPress={() => router.push('/clients')} />
           </View>
           
           <View style={styles.smallSpacer} />
@@ -239,7 +247,6 @@ export default function DashboardScreen() {
               <ClientCard
                 key={client.id}
                 client={client}
-                onDelete={() => {}} // Add delete handler if needed
                 style={styles.clientCard}
               />
             ))
@@ -255,16 +262,13 @@ export default function DashboardScreen() {
       </ScrollView>
 
       {/* Floating Action Button - Add Invoice */}
-      <FloatingActionButton
-        icon="chevron.left.forwardslash.chevron.right"
-        variant="primary"
-        onPress={handleAddInvoice}
-      />
+      
 
       {/* Add Invoice Modal */}
       <AddInvoiceModal
         visible={showAddInvoiceModal}
         onClose={() => setShowAddInvoiceModal(false)}
+        onRefresh={refreshData} // Pass the refresh function to the modal
       />
     </View>
   );
@@ -350,18 +354,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9ca3af',
     textAlign: 'center',
-  },
-  cardContainer: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
   },
   sectionHeader: {
     flexDirection: 'row',

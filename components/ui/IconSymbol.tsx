@@ -25,6 +25,12 @@ const MAPPING = {
   'chevron.down': 'keyboard-arrow-down',
   'xmark': 'close',
   'checkmark': 'check',
+  'magnifyingglass': 'search',
+  'xmark.circle.fill': 'cancel',
+  'calendar': 'event',
+  'note.text': 'note',
+  'trash': 'delete',
+  'plus': 'add',
 } as IconMapping;
 
 /**

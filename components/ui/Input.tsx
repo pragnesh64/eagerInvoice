@@ -1,24 +1,48 @@
+import { cva, type VariantProps } from 'class-variance-authority';
 import React, { useState } from 'react';
 import {
-    TextInputProps as RNTextInputProps,
-    StyleSheet,
-    TextInput,
-    TextStyle,
-    View,
-    ViewStyle
+  Platform,
+  TextInputProps as RNTextInputProps,
+  StyleSheet,
+  Text,
+  TextInput,
+  TextStyle,
+  View,
+  ViewStyle
 } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { useColorScheme } from '../../hooks/useColorScheme';
-import { Text } from './Text';
 
-interface InputProps extends Omit<RNTextInputProps, 'style'> {
+const inputVariants = cva(
+  "flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        default: "border-input",
+        outline: "border-2",
+        filled: "bg-muted",
+      },
+      size: {
+        default: "h-10 px-3 py-2",
+        sm: "h-9 px-2 py-1",
+        lg: "h-11 px-4 py-3",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+);
+
+interface InputProps 
+  extends Omit<RNTextInputProps, 'style'>,
+    VariantProps<typeof inputVariants> {
   label?: string;
   placeholder?: string;
   error?: string;
   helperText?: string;
-  variant?: 'default' | 'outlined' | 'filled';
-  size?: 'sm' | 'md' | 'lg';
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
   containerStyle?: ViewStyle;
@@ -34,7 +58,7 @@ export function Input({
   error,
   helperText,
   variant = 'default',
-  size = 'md',
+  size = 'default',
   leftIcon,
   rightIcon,
   containerStyle,
@@ -69,7 +93,7 @@ export function Input({
         baseStyle.paddingVertical = 16;
         baseStyle.minHeight = 56;
         break;
-      default: // md
+      default: // default
         baseStyle.paddingHorizontal = 14;
         baseStyle.paddingVertical = 12;
         baseStyle.minHeight = 44;
@@ -89,11 +113,11 @@ export function Input({
       case 'filled':
         baseStyle.backgroundColor = colors.backgroundSecondary;
         break;
-      case 'outlined':
+      case 'outline':
         baseStyle.backgroundColor = 'transparent';
         break;
       default:
-        baseStyle.backgroundColor = colors.card;
+        baseStyle.backgroundColor = colors.background;
     }
 
     return baseStyle;
@@ -105,6 +129,14 @@ export function Input({
       color: colors.text,
       fontSize: Typography.base,
       fontWeight: Typography.normal,
+      ...Platform.select({
+        ios: {
+          paddingVertical: 0,
+        },
+        android: {
+          paddingVertical: 0,
+        },
+      }),
     };
 
     // Size text styles
@@ -122,10 +154,11 @@ export function Input({
 
   const getLabelStyle = (): TextStyle => {
     return {
-      color: error ? colors.error : colors.textSecondary,
+      color: error ? colors.error : colors.text,
       fontSize: Typography.sm,
-      fontWeight: Typography.medium,
-      marginBottom: 4,
+      fontWeight: Typography.semibold,
+      marginBottom: 6,
+      opacity: 1,
     };
   };
 
@@ -168,6 +201,10 @@ export function Input({
           placeholderTextColor={colors.textMuted}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
+          clearButtonMode={Platform.OS === 'ios' ? 'while-editing' : 'never'}
+          autoCapitalize={textInputProps.autoCapitalize || 'sentences'}
+          autoCorrect={textInputProps.autoCorrect !== undefined ? textInputProps.autoCorrect : true}
+          returnKeyType={textInputProps.returnKeyType || 'default'}
           {...textInputProps}
         />
         
@@ -197,4 +234,6 @@ const styles = StyleSheet.create({
   iconContainer: {
     marginHorizontal: 8,
   },
-}); 
+});
+
+export { inputVariants };

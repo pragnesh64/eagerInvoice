@@ -1,13 +1,12 @@
-export * from './Badge';
-export * from './Button';
-export * from './Card';
-export * from './DatePicker';
-export * from './Divider';
-export * from './Dropdown';
-export * from './FloatingActionButton';
-export * from './IconSymbol';
-export * from './Input';
-export * from './Spacer';
-export * from './TabBarBackground';
-export * from './Text';
+export { Badge, badgeVariants } from './Badge';
+export { Button } from './Button';
+export { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, cardVariants } from './Card';
+export { DatePicker } from './DatePicker';
+export { Divider } from './Divider';
+export { Dropdown } from './Dropdown';
+export { FloatingActionButton } from './FloatingActionButton';
+export { IconSymbol } from './IconSymbol';
+export { Input, inputVariants } from './Input';
+export { Spacer } from './Spacer';
+export { Text } from './Text';
 

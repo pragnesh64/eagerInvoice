@@ -103,7 +103,17 @@ export class DatabaseUtils {
 
     static query(sql: string, params: any[] = []): DatabaseRow[] {
         const results = db.getAllSync(sql, params) as DatabaseRow[];
-        return results;
+        
+        // Map snake_case to camelCase
+        return results.map(row => {
+            const mappedRow: DatabaseRow = {};
+            Object.entries(row).forEach(([key, value]) => {
+                // Convert snake_case to camelCase
+                const camelKey = key.replace(/_([a-z])/g, g => g[1].toUpperCase());
+                mappedRow[camelKey] = value;
+            });
+            return mappedRow;
+        });
     }
 
     static execute(sql: string, params: any[] = []): SQLiteResult {
@@ -188,11 +198,12 @@ export function initDatabase() {
 export async function backupDatabase(): Promise<void> {
     const tables = db.getAllSync(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';"
-    );
+    ) as DatabaseRow[];
 
     const backup: Record<string, any[]> = {};
-    for (const { name } of tables) {
-        backup[name] = db.getAllSync(`SELECT * FROM ${name};`);
+    for (const table of tables) {
+        const tableName = table.name as string;
+        backup[tableName] = db.getAllSync(`SELECT * FROM ${tableName};`) as any[];
     }
 
     const backupJson = JSON.stringify(backup);
@@ -216,7 +227,7 @@ export async function restoreDatabase(): Promise<void> {
 
         // Restore data
         for (const [table, records] of Object.entries(backup)) {
-            for (const record of records) {
+            for (const record of records as any[]) {
                 DatabaseUtils.insert(table, record);
             }
         }

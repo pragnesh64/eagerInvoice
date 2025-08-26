@@ -2,43 +2,49 @@ import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { Tabs } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaView, StyleSheet, View } from "react-native";
+import { Platform, SafeAreaView, StyleSheet, View } from "react-native";
 import { IconSymbol } from "../../components/ui/IconSymbol";
 
 export default function TabLayout() {
   return (
-    <SafeAreaView style={{ flex: 1 }}>
+    <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: "#537bff",
           tabBarInactiveTintColor: "#e7e7e7",
           tabBarStyle: {
-            backgroundColor: "#1e293b",
-            borderTopWidth: 1,
+            backgroundColor: Platform.OS === 'ios' ? 'rgba(30, 41, 59, 0.95)' : "#1e293b",
+            borderTopWidth: Platform.OS === 'ios' ? 0 : 1,
             borderTopColor: "#e5e7eb",
-            paddingBottom: 10,
-            height: 56,
-            marginBottom: 40,
+            paddingBottom: Platform.OS === 'ios' ? 20 : 10,
+            paddingTop: Platform.OS === 'ios' ? 8 : 0,
+            height: Platform.OS === 'ios' ? 88 : 56,
+            marginBottom: Platform.OS === 'ios' ? 0 : 40,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -2 },
+            shadowOpacity: Platform.OS === 'ios' ? 0.1 : 0,
+            shadowRadius: Platform.OS === 'ios' ? 8 : 0,
+            elevation: Platform.OS === 'ios' ? 0 : 8,
           },
-
+          tabBarBackground: () => (
+            Platform.OS === 'ios' ? (
+              <BlurView
+                tint="dark"
+                intensity={80}
+                style={StyleSheet.absoluteFill}
+              />
+            ) : null
+          ),
           headerBackground: () => (
-            <View style={{ flex: 0.4 }}>
+            <View style={styles.headerBackground}>
               <BlurView
                 tint="light"
-                intensity={0}
+                intensity={Platform.OS === 'ios' ? 80 : 0}
                 style={StyleSheet.absoluteFill}
               />
 
-              <View
-                style={{
-                  position: "absolute",
-                  top: -24,
-                  left: 0,
-                  right: 0,
-                  alignItems: "center",
-                }}
-              >
+              <View style={styles.gradientContainer}>
                 <LinearGradient
                   colors={[
                     "#2F6BFF",
@@ -47,15 +53,7 @@ export default function TabLayout() {
                   ]}
                   start={{ x: 0.5, y: 0 }}
                   end={{ x: 0.5, y: 1 }}
-                  style={{
-                    width: "100%",
-                    height: 18,
-                    shadowColor: "#2F6BFF",
-                    shadowOffset: { width: 0, height: 12 },
-                    shadowOpacity: 0.35,
-                    shadowRadius: 40,
-                    elevation: 10,
-                  }}
+                  style={styles.gradient}
                 />
               </View>
 
@@ -72,9 +70,16 @@ export default function TabLayout() {
           headerTransparent: true,
           headerTintColor: "#fff",
           headerTitle: "",
+          headerStyle: {
+            backgroundColor: 'transparent',
+          },
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: "500",
+            marginTop: Platform.OS === 'ios' ? 4 : 0,
+          },
+          tabBarIconStyle: {
+            marginTop: Platform.OS === 'ios' ? 4 : 0,
           },
         }}
       >
@@ -115,3 +120,29 @@ export default function TabLayout() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+  },
+  headerBackground: {
+    flex: 0.4,
+  },
+  gradientContainer: {
+    position: "absolute",
+    top: Platform.OS === 'ios' ? -24 : -20,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  gradient: {
+    width: "100%",
+    height: 18,
+    shadowColor: "#2F6BFF",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 40,
+    elevation: 10,
+  },
+});

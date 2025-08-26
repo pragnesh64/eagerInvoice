@@ -1,6 +1,8 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useState } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
+import { Colors } from '../../constants/Colors';
+import { useColorScheme } from '../../hooks/useColorScheme';
 import { Button } from './Button';
 
 interface DatePickerProps {
@@ -12,8 +14,60 @@ interface DatePickerProps {
 }
 
 export function DatePicker({ label, value, onChange, error, style }: DatePickerProps) {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
   const [show, setShow] = useState(false);
   const [tempDate, setTempDate] = useState(value);
+
+  const getLabelStyle = (): TextStyle => ({
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: colors.textSecondary,
+    marginBottom: 4,
+  });
+
+  const getInputStyle = (): ViewStyle => ({
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: error ? colors.error : colors.border,
+    borderRadius: 8,
+    padding: 12,
+    minHeight: 44,
+    justifyContent: 'center' as const,
+  });
+
+  const getDateTextStyle = (): TextStyle => ({
+    fontSize: 16,
+    color: colors.text,
+  });
+
+  const getErrorStyle = (): TextStyle => ({
+    fontSize: 12,
+    color: colors.error,
+    marginTop: 4,
+  });
+
+  const getModalContentStyle = (): ViewStyle => ({
+    backgroundColor: colors.background,
+    borderRadius: 16,
+    padding: 20,
+    width: '90%' as any,
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  });
+
+  const getModalTitleStyle = (): TextStyle => ({
+    fontSize: 18,
+    fontWeight: '600' as const,
+    color: colors.text,
+  });
 
   const handleChange = (_: any, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
@@ -51,16 +105,16 @@ export function DatePicker({ label, value, onChange, error, style }: DatePickerP
 
   return (
     <View style={[styles.container, style]}>
-      {label && <Text style={styles.label}>{label}</Text>}
+      {label && <Text style={getLabelStyle()}>{label}</Text>}
       
       <Pressable
-        style={[styles.input, error && styles.inputError]}
+        style={getInputStyle()}
         onPress={showDatepicker}
       >
-        <Text style={styles.dateText}>{formattedDate}</Text>
+        <Text style={getDateTextStyle()}>{formattedDate}</Text>
       </Pressable>
 
-      {error && <Text style={styles.errorText}>{error}</Text>}
+      {error && <Text style={getErrorStyle()}>{error}</Text>}
 
       {Platform.OS === 'android' ? (
         show && (
@@ -76,11 +130,12 @@ export function DatePicker({ label, value, onChange, error, style }: DatePickerP
           visible={show}
           transparent
           animationType="fade"
+          presentationStyle="overFullScreen"
         >
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+            <View style={getModalContentStyle()}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select Date</Text>
+                <Text style={getModalTitleStyle()}>Select Date</Text>
               </View>
               
               <DateTimePicker
@@ -89,6 +144,7 @@ export function DatePicker({ label, value, onChange, error, style }: DatePickerP
                 display="spinner"
                 onChange={handleChange}
                 style={styles.datePicker}
+                textColor="#000"
               />
               
               <View style={styles.modalFooter}>
@@ -117,66 +173,26 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    padding: 12,
-    height: 44,
-    justifyContent: 'center',
-  },
-  inputError: {
-    borderColor: '#dc2626',
-  },
-  dateText: {
-    fontSize: 16,
-    color: '#111827',
-  },
-  errorText: {
-    color: '#dc2626',
-    fontSize: 12,
-    marginTop: 4,
-  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
-  },
-  modalContent: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    width: '100%',
-    maxWidth: 400,
-    padding: 16,
   },
   modalHeader: {
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+    marginBottom: 20,
   },
   datePicker: {
-    height: 200,
-    marginBottom: 16,
+    height: Platform.OS === 'ios' ? 200 : 120,
+    marginBottom: 20,
   },
   modalFooter: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
+    justifyContent: 'space-between',
+    gap: 12,
   },
   footerButton: {
-    minWidth: 100,
+    flex: 1,
   },
 }); 

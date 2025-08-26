@@ -1,142 +1,156 @@
+import { cva, type VariantProps } from 'class-variance-authority';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, TextStyle, View, ViewStyle } from 'react-native';
+import { Colors } from '../../constants/Colors';
+import { useColorScheme } from '../../hooks/useColorScheme';
+import { cn } from '../../utils/cn';
 
-interface BadgeProps {
-  children: React.ReactNode;
-  variant?: 'default' | 'success' | 'warning' | 'error' | 'info' | 'outline' | 'primary' | 'secondary';
-  size?: 'sm' | 'md' | 'lg';
-  style?: any;
-}
-
-export function Badge({ 
-  children, 
-  variant = 'default', 
-  size = 'md',
-  style 
-}: BadgeProps) {
-  const getVariantStyle = () => {
-    switch (variant) {
-      case 'success':
-        return { backgroundColor: '#059669', color: '#ffffff' };
-      case 'warning':
-        return { backgroundColor: '#d97706', color: '#ffffff' };
-      case 'error':
-        return { backgroundColor: '#dc2626', color: '#ffffff' };
-      case 'info':
-        return { backgroundColor: '#1e40af', color: '#ffffff' };
-      case 'outline':
-        return { backgroundColor: 'transparent', color: '#6b7280', borderColor: '#d1d5db' };
-      case 'primary':
-        return { backgroundColor: '#7c3aed', color: '#ffffff' };
-      case 'secondary':
-        return { backgroundColor: '#f3f4f6', color: '#374151' };
-      default:
-        return { backgroundColor: '#6b7280', color: '#ffffff' };
-    }
-  };
-
-  const getSizeStyle = () => {
-    switch (size) {
-      case 'sm':
-        return { paddingHorizontal: 6, paddingVertical: 2, fontSize: 10 };
-      case 'lg':
-        return { paddingHorizontal: 10, paddingVertical: 4, fontSize: 12 };
-      default:
-        return { paddingHorizontal: 8, paddingVertical: 3, fontSize: 11 };
-    }
-  };
-
-  const variantStyle = getVariantStyle();
-  const sizeStyle = getSizeStyle();
-
-  return (
-    <View style={[
-      styles.badge,
-      {
-        backgroundColor: variantStyle.backgroundColor,
-        borderColor: variantStyle.borderColor,
+const badgeVariants = cva(
+  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  {
+    variants: {
+      variant: {
+        default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+        secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
+        outline: "text-foreground",
+        success: "border-transparent bg-green-500 text-white",
+        warning: "border-transparent bg-yellow-500 text-white",
+        info: "border-transparent bg-blue-500 text-white",
       },
-      sizeStyle,
-      style
-    ]}>
-      <Text style={[
-        styles.text,
-        {
-          color: variantStyle.color,
-          fontSize: sizeStyle.fontSize,
-        }
-      ]}>
-        {children}
-      </Text>
-    </View>
-  );
+      size: {
+        default: "px-2.5 py-0.5",
+        sm: "px-2 py-0.5",
+        lg: "px-3 py-1",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+);
+
+export interface BadgeProps
+  extends React.ComponentPropsWithoutRef<typeof View>,
+    VariantProps<typeof badgeVariants> {
+  children: React.ReactNode;
+  style?: ViewStyle;
+  textStyle?: TextStyle;
 }
 
-interface StatusBadgeProps {
-  status: 'paid' | 'pending' | 'overdue' | 'draft';
-  size?: 'sm' | 'md' | 'lg';
-}
+const Badge = React.forwardRef<React.ElementRef<typeof View>, BadgeProps>(
+  ({ className, variant, size, children, style, textStyle, ...props }, ref) => {
+    const colorScheme = useColorScheme();
+    const colors = Colors[colorScheme ?? 'light'];
 
-export function StatusBadge({ status, size = 'md' }: StatusBadgeProps) {
-  const getStatusVariant = () => {
-    switch (status) {
-      case 'paid':
-        return 'success';
-      case 'pending':
-        return 'warning';
-      case 'overdue':
-        return 'error';
-      case 'draft':
-        return 'outline';
-      default:
-        return 'default';
-    }
-  };
+    const getBadgeStyle = (): ViewStyle => {
+      const baseStyle: ViewStyle = {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 16,
+        borderWidth: 1,
+      };
 
-  return (
-    <Badge variant={getStatusVariant()} size={size}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </Badge>
-  );
-}
+      // Size variants
+      switch (size) {
+        case 'sm':
+          baseStyle.paddingHorizontal = 8;
+          baseStyle.paddingVertical = 2;
+          break;
+        case 'lg':
+          baseStyle.paddingHorizontal = 12;
+          baseStyle.paddingVertical = 4;
+          break;
+        default: // default
+          baseStyle.paddingHorizontal = 10;
+          baseStyle.paddingVertical = 2;
+      }
 
-interface ClientTypeBadgeProps {
-  type: 'Micro' | 'Mid' | 'Core' | 'Large Retainer';
-  size?: 'sm' | 'md' | 'lg';
-}
+      // Variant styles
+      switch (variant) {
+        case 'secondary':
+          baseStyle.backgroundColor = colors.backgroundSecondary;
+          baseStyle.borderColor = colors.border;
+          break;
+        case 'destructive':
+          baseStyle.backgroundColor = colors.error;
+          baseStyle.borderColor = colors.error;
+          break;
+        case 'outline':
+          baseStyle.backgroundColor = 'transparent';
+          baseStyle.borderColor = colors.border;
+          break;
+        case 'success':
+          baseStyle.backgroundColor = '#10b981';
+          baseStyle.borderColor = '#10b981';
+          break;
+        case 'warning':
+          baseStyle.backgroundColor = '#f59e0b';
+          baseStyle.borderColor = '#f59e0b';
+          break;
+        case 'info':
+          baseStyle.backgroundColor = '#3b82f6';
+          baseStyle.borderColor = '#3b82f6';
+          break;
+        default: // primary
+          baseStyle.backgroundColor = colors.primary;
+          baseStyle.borderColor = colors.primary;
+      }
 
-export function ClientTypeBadge({ type, size = 'md' }: ClientTypeBadgeProps) {
-  const getTypeVariant = () => {
-    switch (type) {
-      case 'Micro':
-        return 'outline';
-      case 'Mid':
-        return 'secondary';
-      case 'Core':
-        return 'primary';
-      case 'Large Retainer':
-        return 'success';
-      default:
-        return 'default';
-    }
-  };
+      return baseStyle;
+    };
 
-  return (
-    <Badge variant={getTypeVariant()} size={size}>
-      {type}
-    </Badge>
-  );
-}
+    const getTextStyle = (): TextStyle => {
+      const baseStyle: TextStyle = {
+        fontSize: 12,
+        fontWeight: '600',
+        textAlign: 'center',
+      };
 
-const styles = StyleSheet.create({
-  badge: {
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  text: {
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-}); 
+      // Size text styles
+      switch (size) {
+        case 'sm':
+          baseStyle.fontSize = 10;
+          break;
+        case 'lg':
+          baseStyle.fontSize = 14;
+          break;
+      }
+
+      // Variant text colors
+      switch (variant) {
+        case 'secondary':
+        case 'outline':
+          baseStyle.color = colors.text;
+          break;
+        case 'destructive':
+        case 'success':
+        case 'warning':
+        case 'info':
+        case 'default':
+          baseStyle.color = '#ffffff';
+          break;
+      }
+
+      return baseStyle;
+    };
+
+    return (
+      <View
+        className={cn(badgeVariants({ variant, size, className }))}
+        ref={ref}
+        style={[getBadgeStyle(), style]}
+        {...props}
+      >
+        <Text style={[getTextStyle(), textStyle]}>
+          {children}
+        </Text>
+      </View>
+    );
+  }
+);
+
+Badge.displayName = "Badge";
+
+export { Badge, badgeVariants };

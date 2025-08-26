@@ -101,8 +101,29 @@ export default function ReportsScreen() {
       // Load clients and invoices
       const allClients = await clients.getAll();
       const allInvoices = await invoices.getAll();
-      setClientList(allClients || []);
-      setInvoiceList(allInvoices || []);
+      
+      // Map clients to proper interface
+      setClientList(allClients.map(client => ({
+        id: client.id,
+        name: client.name,
+        type: client.type,
+        startDate: client.startDate,
+        notes: client.notes,
+        createdAt: client.createdAt,
+        updatedAt: client.updatedAt
+      })));
+      
+      // Map invoices to proper interface with client names
+      setInvoiceList(allInvoices.map(invoice => ({
+        id: invoice.id,
+        invoiceNo: invoice.invoiceNo,
+        clientId: invoice.clientId,
+        clientName: invoice.clientName || 'Unknown Client',
+        amount: invoice.amount,
+        date: invoice.date,
+        createdAt: invoice.createdAt,
+        updatedAt: invoice.updatedAt
+      })));
 
       // Load monthly overview
       const currentMonth = new Date().toISOString().slice(0, 7);
@@ -134,8 +155,8 @@ export default function ReportsScreen() {
           netProfit: trend.netProfit || 0,
         })) || [],
         topClients: topClients?.map(client => ({
-          clientId: client.client_id || '',
-          clientName: client.client_name || '',
+          clientId: client.clientId || '',
+          clientName: client.clientName || '',
           revenue: client.revenue || 0,
           percentage: client.percentage || 0,
         })) || [],
