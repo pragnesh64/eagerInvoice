@@ -116,7 +116,7 @@ export function StatCard({
 
       <View style={styles.content}>
         <Text style={[styles.valueText, { color: getTextColor() }]}>
-          {typeof value === 'number' ? `$${value.toLocaleString()}` : value}
+          {value}
         </Text>
         
         {subtitle && (

@@ -14,10 +14,11 @@ export interface ClientCardProps {
   client: Client;
   onDelete?: () => void;
   onEdit?: () => void;
+  onInvoices?: () => void;
   style?: ViewStyle;
 }
 
-export function ClientCard({ client, onDelete, onEdit, style }: ClientCardProps) {
+export function ClientCard({ client, onDelete, onEdit, onInvoices, style }: ClientCardProps) {
   const lastTap = useRef(0);
   const DOUBLE_TAP_DELAY = 300;
   const [isDoubleTapped, setIsDoubleTapped] = useState(false);
@@ -95,18 +96,17 @@ export function ClientCard({ client, onDelete, onEdit, style }: ClientCardProps)
         </View>
       </TouchableOpacity>
 
-      {/* Actions */}
+      {/* Action Buttons */}
       <View style={styles.actionButtons}>
-        {onEdit && (
-          <TouchableOpacity onPress={onEdit} style={styles.editButton}>
-            <IconSymbol name="pencil" size={18} color="#3b82f6" />
-          </TouchableOpacity>
-        )}
-        {onDelete && (
-          <TouchableOpacity onPress={onDelete} style={styles.deleteButton}>
-            <IconSymbol name="trash" size={20} color="#ef4444" />
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity style={styles.actionButton} onPress={onEdit}>
+          <Text style={styles.actionButtonText}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionButton} onPress={onInvoices}>
+          <Text style={styles.actionButtonText}>Invoices</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.actionButton, styles.deleteButton]} onPress={onDelete}>
+          <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Delete</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -114,11 +114,9 @@ export function ClientCard({ client, onDelete, onEdit, style }: ClientCardProps)
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#1f2937', // dark modern background
+    backgroundColor: '#17313E', // dark modern background
     borderRadius: 14,
     padding: 16,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -133,6 +131,7 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     flex: 1,
+    marginBottom: 12,
   },
   content: {
     flex: 1,
@@ -183,13 +182,31 @@ const styles = StyleSheet.create({
   },
   actionButtons: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 6,
+    gap: 8,
+    marginTop: 0,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#374151',
   },
-  editButton: {
-    padding: 8,
+  actionButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#374151',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 40,
+  },
+  actionButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#f9fafb',
   },
   deleteButton: {
-    padding: 8,
+    backgroundColor: '#dc2626',
+  },
+  deleteButtonText: {
+    color: '#ffffff',
   },
 });

@@ -3,6 +3,7 @@ import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { useDatabase } from '../../context/DatabaseContext';
 import { useColorScheme } from '../../hooks/useColorScheme';
+import { rupeesToPaise } from '../../utils/currencyUtils';
 import { Button } from '../ui/Button';
 import { DatePicker } from '../ui/DatePicker';
 import { Dropdown } from '../ui/Dropdown';
@@ -22,13 +23,12 @@ interface AddInvoiceModalProps {
 }
 
 export function AddInvoiceModal({ visible, onClose, onRefresh }: AddInvoiceModalProps) {
-  const { clients, invoices } = useDatabase();
+  const { clients, invoices, salary } = useDatabase();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const [clientList, setClientList] = useState<Client[]>([]);
   const [formData, setFormData] = useState({
     clientId: '',
-    invoiceNo: '',
     amount: '',
     date: new Date(),
   });
@@ -50,12 +50,7 @@ export function AddInvoiceModal({ visible, onClose, onRefresh }: AddInvoiceModal
         createdAt: client.createdAt
       })));
 
-      const latestInvoiceNo = await invoices.getLatestInvoiceNumber();
-      const nextInvoiceNo = latestInvoiceNo ? 
-        `INV-${(parseInt(latestInvoiceNo.split('-')[1]) + 1).toString().padStart(3, '0')}` : 
-        'INV-001';
 
-      setFormData(prev => ({ ...prev, invoiceNo: nextInvoiceNo }));
     } catch (error) {
       console.error('Error loading data:', error);
       Alert.alert('Error', 'Failed to load data. Please try again.');
@@ -76,10 +71,6 @@ export function AddInvoiceModal({ visible, onClose, onRefresh }: AddInvoiceModal
 
     if (!formData.clientId) {
       newErrors.clientId = 'Client is required';
-    }
-
-    if (!formData.invoiceNo.trim()) {
-      newErrors.invoiceNo = 'Invoice number is required';
     }
 
     if (!formData.amount.trim()) {
@@ -103,10 +94,13 @@ export function AddInvoiceModal({ visible, onClose, onRefresh }: AddInvoiceModal
     try {
       await invoices.create({
         clientId: formData.clientId,
-        invoiceNo: formData.invoiceNo.trim(),
-        amount: parseFloat(formData.amount),
+        amount: rupeesToPaise(parseFloat(formData.amount)),
         date: formData.date.toISOString().split('T')[0],
       });
+
+      // Calculate and update salary for the invoice month
+      const invoiceMonth = formData.date.toISOString().slice(0, 7);
+      await salary.calculateAndUpdateSalary(invoiceMonth);
 
       Alert.alert('Success', 'Invoice added successfully!');
       
@@ -125,7 +119,6 @@ export function AddInvoiceModal({ visible, onClose, onRefresh }: AddInvoiceModal
   const handleCancel = () => {
     setFormData({
       clientId: '',
-      invoiceNo: '',
       amount: '',
       date: new Date(),
     });
@@ -190,15 +183,7 @@ export function AddInvoiceModal({ visible, onClose, onRefresh }: AddInvoiceModal
               />
             </View>
 
-            <View style={styles.inputContainer}>
-              <Input
-                label="Invoice Number *"
-                value={formData.invoiceNo}
-                onChangeText={(value) => updateFormData('invoiceNo', value)}
-                placeholder="Enter invoice number"
-                error={errors.invoiceNo}
-              />
-            </View>
+
 
             <View style={styles.inputContainer}>
               <Input

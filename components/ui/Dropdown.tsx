@@ -20,6 +20,7 @@ export interface DropdownProps {
   placeholder?: string;
   error?: string;
   helperText?: string;
+  labelColor?: string;
 }
 
 export function Dropdown({
@@ -30,13 +31,14 @@ export function Dropdown({
   placeholder = "Select an option",
   error,
   helperText,
+  labelColor = "#f9fafb",
 }: DropdownProps) {
   const [isFocused, setIsFocused] = useState(false);
 
   return (
     <View style={styles.container}>
       {label && (
-        <Text style={[styles.label, error && styles.labelError]}>
+        <Text style={[styles.label, error && styles.labelError, { color: labelColor }]}>
           {label}
         </Text>
       )}
@@ -87,7 +89,6 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: "500",
-    color: "#e5e7eb", // same as Input label
     marginBottom: 6,
   },
   labelError: {

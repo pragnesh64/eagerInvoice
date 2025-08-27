@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import {
+    clearAllAppData,
     ClientService,
     initDatabase,
     InvoiceService,
@@ -22,10 +23,15 @@ interface DatabaseContextType {
     // Invoice operations
     invoices: {
         create: typeof InvoiceService.create;
+        update: typeof InvoiceService.update;
+        delete: typeof InvoiceService.delete;
+        getById: typeof InvoiceService.getById;
         getAll: typeof InvoiceService.getAll;
         getByClientId: typeof InvoiceService.getByClientId;
         getMonthlyRevenue: typeof InvoiceService.getMonthlyRevenue;
         getLatestInvoiceNumber: typeof InvoiceService.getLatestInvoiceNumber;
+        getNextInvoiceNumber: typeof InvoiceService.getNextInvoiceNumber;
+        debugInvoices: typeof InvoiceService.debugInvoices;
     };
 
     // Salary operations
@@ -33,6 +39,8 @@ interface DatabaseContextType {
         create: typeof SalaryService.create;
         getByMonth: typeof SalaryService.getByMonth;
         getMonthlyStats: typeof SalaryService.getMonthlyStats;
+        calculateAndUpdateSalary: typeof SalaryService.calculateAndUpdateSalary;
+        getCalculatedSalary: typeof SalaryService.getCalculatedSalary;
     };
 
     // Report operations
@@ -42,6 +50,9 @@ interface DatabaseContextType {
         getTopClients: typeof ReportService.getTopClients;
         getAllTimeStats: typeof ReportService.getAllTimeStats;
     };
+
+    // Utility operations
+    clearAllData: typeof clearAllAppData;
 
     // Loading state
     isLoading: boolean;
@@ -96,16 +107,23 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
 
         invoices: {
             create: InvoiceService.create,
+            update: InvoiceService.update,
+            delete: InvoiceService.delete,
+            getById: InvoiceService.getById,
             getAll: InvoiceService.getAll,
             getByClientId: InvoiceService.getByClientId,
             getMonthlyRevenue: InvoiceService.getMonthlyRevenue,
             getLatestInvoiceNumber: InvoiceService.getLatestInvoiceNumber,
+            getNextInvoiceNumber: InvoiceService.getNextInvoiceNumber,
+            debugInvoices: InvoiceService.debugInvoices,
         },
 
         salary: {
             create: SalaryService.create,
             getByMonth: SalaryService.getByMonth,
             getMonthlyStats: SalaryService.getMonthlyStats,
+            calculateAndUpdateSalary: SalaryService.calculateAndUpdateSalary,
+            getCalculatedSalary: SalaryService.getCalculatedSalary,
         },
 
         reports: {
@@ -114,6 +132,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
             getTopClients: ReportService.getTopClients,
             getAllTimeStats: ReportService.getAllTimeStats,
         },
+
+        clearAllData: clearAllAppData,
 
         isLoading,
         error,

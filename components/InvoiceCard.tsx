@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { formatCurrency } from '../utils/currencyUtils';
 import { Badge } from './ui/Badge';
 
 interface InvoiceCardProps {
@@ -10,6 +11,8 @@ interface InvoiceCardProps {
   dueDate: string;
   status: 'paid' | 'pending' | 'overdue' | 'draft';
   onPress?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }
 
 export function InvoiceCard({
@@ -20,6 +23,8 @@ export function InvoiceCard({
   dueDate,
   status,
   onPress,
+  onEdit,
+  onDelete,
 }: InvoiceCardProps) {
   const formatDate = (dateString: string) => {
     try {
@@ -49,36 +54,48 @@ export function InvoiceCard({
   };
 
   return (
-    <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.85}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.invoiceInfo}>
-          <Text style={styles.invoiceNumber}>{invoiceNumber}</Text>
-          <Text style={styles.clientName}>{clientName}</Text>
+    <View style={styles.container}>
+      <TouchableOpacity style={styles.cardContent} onPress={onPress} activeOpacity={0.85}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.invoiceInfo}>
+            <Text style={styles.invoiceNumber}>{invoiceNumber}</Text>
+            <Text style={styles.clientName}>{clientName}</Text>
+          </View>
+          <View style={styles.amountContainer}>
+            <Text style={styles.amount}>{formatCurrency(amount)}</Text>
+            <Badge variant={getStatusVariant(status)} size="sm">
+              {status.charAt(0).toUpperCase() + status.slice(1)}
+            </Badge>
+          </View>
         </View>
-        <View style={styles.amountContainer}>
-          <Text style={styles.amount}>₹{amount.toLocaleString()}</Text>
-          <Badge variant={getStatusVariant(status)} size="sm">
-            {status.charAt(0).toUpperCase() + status.slice(1)}
-          </Badge>
-        </View>
-      </View>
 
-      {/* Divider */}
-      <View style={styles.divider} />
+        {/* Divider */}
+        <View style={styles.divider} />
 
-      {/* Footer */}
-      <View style={styles.footer}>
-        <View style={styles.dateInfo}>
-          <Text style={styles.dateLabel}>Issued</Text>
-          <Text style={styles.dateText}>{formatDate(date)}</Text>
+        {/* Footer */}
+        <View style={styles.footer}>
+          <View style={styles.dateInfo}>
+            <Text style={styles.dateLabel}>Issued</Text>
+            <Text style={styles.dateText}>{formatDate(date)}</Text>
+          </View>
+          <View style={styles.dateInfo}>
+            <Text style={styles.dateLabel}>Due</Text>
+            <Text style={styles.dateText}>{formatDate(dueDate)}</Text>
+          </View>
         </View>
-        <View style={styles.dateInfo}>
-          <Text style={styles.dateLabel}>Due</Text>
-          <Text style={styles.dateText}>{formatDate(dueDate)}</Text>
-        </View>
+      </TouchableOpacity>
+
+      {/* Action Buttons */}
+      <View style={styles.actionButtons}>
+        <TouchableOpacity style={styles.actionButton} onPress={onEdit}>
+          <Text style={styles.actionButtonText}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.actionButton, styles.deleteButton]} onPress={onDelete}>
+          <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Delete</Text>
+        </TouchableOpacity>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -145,5 +162,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#e5e7eb',
+  },
+  cardContent: {
+    flex: 1,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    marginTop: 12,
+    gap: 8,
+  },
+  actionButton: {
+    flex: 1,
+    backgroundColor: '#374151',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  actionButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  deleteButton: {
+    backgroundColor: '#dc2626',
+  },
+  deleteButtonText: {
+    color: '#ffffff',
   },
 });

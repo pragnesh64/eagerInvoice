@@ -1,15 +1,18 @@
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   Button,
   ClientCard,
   InvoiceCard,
   StatCard
 } from '../../components';
+import { AddClientModal } from '../../components/modals/AddClientModal';
 import { AddInvoiceModal } from '../../components/modals/AddInvoiceModal';
+import { EditInvoiceModal } from '../../components/modals/EditInvoiceModal';
 import { useDatabase } from '../../context/DatabaseContext';
+import { formatCurrency } from '../../utils/currencyUtils';
 
 interface Client {
   id: string;
@@ -53,7 +56,15 @@ export default function DashboardScreen() {
     salary: DEFAULT_SALARY,
     netProfit: 0
   });
+  const [allTimeStats, setAllTimeStats] = useState({
+    totalRevenue: 0,
+    totalSalaryPaid: 0,
+    netProfit: 0
+  });
   const [showAddInvoiceModal, setShowAddInvoiceModal] = useState(false);
+  const [showEditInvoiceModal, setShowEditInvoiceModal] = useState(false);
+  const [showAddClientModal, setShowAddClientModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -63,7 +74,7 @@ export default function DashboardScreen() {
   const loadData = async () => {
     try {
       setIsLoading(true);
-      
+
       const allClients = await clients.getAll();
       setClientList(allClients.map(client => ({
         id: client.id,
@@ -88,17 +99,28 @@ export default function DashboardScreen() {
 
       const currentMonth = new Date().toISOString().slice(0, 7);
       const monthOverview = await reports.getMonthlyOverview(currentMonth);
-      const monthSalaryData = await salary.getByMonth(currentMonth);
-      const monthSalary = monthSalaryData ? {
-        retainer: monthSalaryData.retainer,
-        commission: monthSalaryData.commission,
-        total: monthSalaryData.total
-      } : DEFAULT_SALARY;
-      
+
+      // Get calculated salary based on current revenue
+      const calculatedSalary = salary.getCalculatedSalary(currentMonth);
+      const monthSalary = {
+        retainer: calculatedSalary.retainer,
+        commission: calculatedSalary.commission,
+        total: calculatedSalary.total
+      };
+
       setMonthlyStats({
         revenue: monthOverview?.revenue || 0,
         salary: monthSalary,
-        netProfit: monthOverview?.netProfit || 0
+        netProfit: (monthOverview?.revenue || 0) - monthSalary.total
+      });
+
+      // Get all-time statistics
+      const allTimeOverview = await reports.getAllTimeStats();
+      console.log('All-time overview:', allTimeOverview); // Debug log
+      setAllTimeStats({
+        totalRevenue: Number(allTimeOverview.totalRevenue) || 0,
+        totalSalaryPaid: Number(allTimeOverview.totalSalaryPaid) || 0,
+        netProfit: Number(allTimeOverview.totalNetProfit) || 0
       });
 
     } catch (error) {
@@ -112,21 +134,58 @@ export default function DashboardScreen() {
     setShowAddInvoiceModal(true);
   };
 
+  const handleAddClient = () => {
+    setShowAddClientModal(true);
+  };
+
+
+
   const handleInvoicePress = (invoiceNumber: string) => {
     console.log('Invoice pressed:', invoiceNumber);
+  };
+
+  const handleEditInvoice = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setShowEditInvoiceModal(true);
+  };
+
+  const handleDeleteInvoice = async (invoice: Invoice) => {
+    Alert.alert(
+      'Delete Invoice',
+      `Are you sure you want to delete invoice ${invoice.invoiceNo}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await invoices.delete(invoice.id);
+              Alert.alert('Success', 'Invoice deleted successfully!');
+              loadData(); // Refresh the data
+            } catch (error) {
+              console.error('Error deleting invoice:', error);
+              Alert.alert('Error', 'Failed to delete invoice. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleClientPress = (clientName: string) => {
     console.log('Client pressed:', clientName);
   };
 
-  const refreshData = () => {
-    loadData();
+  const refreshData = async () => {
+    await loadData();
   };
+
+
 
   // Get recent invoices (last 3) - already sorted by creation date from database
   const recentInvoices = invoiceList.slice(0, 3);
-  
+
   // Get top clients (by revenue, last 2) - but show most recent first if revenue is same
   const topClients = clientList
     .map(client => {
@@ -138,7 +197,7 @@ export default function DashboardScreen() {
       // First sort by revenue (highest first)
       const revenueDiff = (b.totalRevenue || 0) - (a.totalRevenue || 0);
       if (revenueDiff !== 0) return revenueDiff;
-      
+
       // If revenue is same, sort by creation date (newest first)
       return new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime();
     })
@@ -155,9 +214,9 @@ export default function DashboardScreen() {
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
-      
-      <ScrollView 
-        style={styles.scrollView} 
+
+      <ScrollView
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
@@ -168,80 +227,95 @@ export default function DashboardScreen() {
 
         <View style={styles.spacer} />
 
-        {/* Stats Row */}
-        <View style={styles.statsRow}>
-          <StatCard
-            title="Monthly Revenue"
-            value={monthlyStats.revenue}
-            subtitle="Total this month"
-            icon="house.fill"
-            variant="primary"
-            style={styles.statCard}
-          />
-          <StatCard
-            title="Mohit's Salary"
-            value={monthlyStats.salary.total}
-            subtitle={`₹${monthlyStats.salary.total.toLocaleString()}`}
-            icon="chevron.right"
-            variant="warning"
-            style={styles.statCard}
-          />
-        </View>
-
-        <View style={styles.spacer} />
-
-        <View style={styles.profitCard}>
-          <View style={styles.profitContent}>
-            <Text style={styles.profitLabel}>Your Net Profit</Text>
-            <Text style={styles.profitValue}>₹{monthlyStats.netProfit.toLocaleString()}</Text>
-            <Text style={styles.profitSubtitle}>
-              Revenue: ₹{monthlyStats.revenue.toLocaleString()} - Salary: ₹{monthlyStats.salary.total.toLocaleString()}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.spacer} />
-
+        {/* Monthly Summary Section */}
         <View>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Invoices</Text>
-            <Button title="View All" variant="outline" size="sm" onPress={() => router.push('/invoices')} />
-          </View>
-          
+          <Text style={styles.sectionTitle}>Monthly Summary</Text>
           <View style={styles.smallSpacer} />
-          
-          {recentInvoices.length > 0 ? (
-            recentInvoices.map((invoice) => (
-              <InvoiceCard
-                key={invoice.id}
-                invoiceNumber={invoice.invoiceNo}
-                clientName={invoice.clientName}
-                amount={invoice.amount}
-                date={invoice.date}
-                dueDate={invoice.date} // Using same date as due date for now
-                status="paid"
-                onPress={() => handleInvoicePress(invoice.invoiceNo)}
-              />
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No invoices yet</Text>
-              <Text style={styles.emptySubtext}>Create your first invoice to get started</Text>
+
+          <View style={styles.statsRow}>
+            <StatCard
+              title="Total Revenue"
+              value={formatCurrency(monthlyStats.revenue)}
+              subtitle="All clients this month"
+              icon="house.fill"
+              variant="primary"
+              style={styles.statCard}
+            />
+            <StatCard
+              title="Mohit's Salary"
+              value={formatCurrency(monthlyStats.salary.total)}
+              subtitle={`Retainer: ${formatCurrency(monthlyStats.salary.retainer)} | Commission: ${formatCurrency(monthlyStats.salary.commission)}`}
+              icon="chevron.right"
+              variant="warning"
+              style={styles.statCard}
+            />
+          </View>
+
+          <View style={styles.spacer} />
+
+          <View style={styles.profitCard}>
+            <View style={styles.profitContent}>
+              <Text style={styles.profitLabel}>Your Remaining Profit</Text>
+                          <Text style={styles.profitValue}>{formatCurrency(monthlyStats.netProfit)}</Text>
+            <Text style={styles.profitSubtitle}>
+              Revenue: {formatCurrency(monthlyStats.revenue)} - Salary: {formatCurrency(monthlyStats.salary.total)}
+            </Text>
             </View>
-          )}
+          </View>
         </View>
 
         <View style={styles.spacer} />
 
-        {/* Top Clients */}
+        {/* All-time Summary Section */}
+        <View>
+          <Text style={styles.sectionTitle}>All-time Summary</Text>
+          <View style={styles.smallSpacer} />
+
+          <View style={styles.statsRow}>
+            <StatCard
+              title="Total Revenue"
+              value={formatCurrency(allTimeStats.totalRevenue)}
+              subtitle="Cumulative revenue"
+              icon="house.fill"
+              variant="success"
+              style={styles.statCard}
+            />
+            <StatCard
+              title="Total Paid to Mohit"
+              value={formatCurrency(allTimeStats.totalSalaryPaid)}
+              subtitle="All-time salary paid"
+              icon="chevron.right"
+              variant="warning"
+              style={styles.statCard}
+            />
+          </View>
+
+          <View style={styles.spacer} />
+
+          <View style={[styles.profitCard, styles.allTimeProfitCard]}>
+            <View style={styles.profitContent}>
+              <Text style={styles.profitLabel}>Net Profit</Text>
+                          <Text style={styles.profitValue}>{formatCurrency(allTimeStats.netProfit)}</Text>
+            <Text style={styles.profitSubtitle}>
+              Total Revenue: {formatCurrency(allTimeStats.totalRevenue)} - Total Salary: {formatCurrency(allTimeStats.totalSalaryPaid)}
+            </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.spacer} />
         <View>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Top Clients</Text>
-            <Button title="View All" variant="outline" size="sm" onPress={() => router.push('/clients')} />
+            <View style={styles.headerButtons}>
+              <Button title="Add Client" variant="outline" size="sm" onPress={handleAddClient} />
+              <Button title="View All" variant="outline" size="sm" onPress={() => router.push('/clients')} />
+            </View>
+
           </View>
-          
+
           <View style={styles.smallSpacer} />
-          
+
           {topClients.length > 0 ? (
             topClients.map((client) => (
               <ClientCard
@@ -257,18 +331,65 @@ export default function DashboardScreen() {
             </View>
           )}
         </View>
+        <View style={styles.spacer} />
+        <View>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Invoices</Text>
+            <Button title="View All" variant="outline" size="sm" onPress={() => router.push('/invoices')} />
+          </View>
 
-        <View style={styles.largeSpacer} />
+          <View style={styles.smallSpacer} />
+
+          {recentInvoices.length > 0 ? (
+            recentInvoices.map((invoice) => (
+              <InvoiceCard
+                key={invoice.id}
+                invoiceNumber={invoice.invoiceNo}
+                clientName={invoice.clientName}
+                amount={invoice.amount}
+                date={invoice.date}
+                dueDate={invoice.date} // Using same date as due date for now
+                status="paid"
+                onPress={() => handleInvoicePress(invoice.invoiceNo)}
+                onEdit={() => handleEditInvoice(invoice)}
+                onDelete={() => handleDeleteInvoice(invoice)}
+              />
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No invoices yet</Text>
+              <Text style={styles.emptySubtext}>Create your first invoice to get started</Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.spacer} />
       </ScrollView>
-
-      {/* Floating Action Button - Add Invoice */}
-      
 
       {/* Add Invoice Modal */}
       <AddInvoiceModal
         visible={showAddInvoiceModal}
         onClose={() => setShowAddInvoiceModal(false)}
-        onRefresh={refreshData} // Pass the refresh function to the modal
+        onRefresh={refreshData}
+      />
+
+      {/* Edit Invoice Modal */}
+      <EditInvoiceModal
+        visible={showEditInvoiceModal}
+        invoice={selectedInvoice}
+        onClose={() => {
+          setShowEditInvoiceModal(false);
+          setSelectedInvoice(null);
+        }}
+        onRefresh={refreshData}
+      />
+
+      {/* Add Client Modal */}
+      <AddClientModal
+        visible={showAddClientModal}
+        onClose={() => {
+          setShowAddClientModal(false);
+        }}
+        onRefresh={refreshData}
       />
     </View>
   );
@@ -277,7 +398,7 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: 'rgba(249, 250, 251, 0.1)',  
   },
   loadingContainer: {
     justifyContent: 'center',
@@ -361,10 +482,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#111827',
+  },
+  allTimeProfitCard: {
+    backgroundColor: '#f0fdf4',
+    borderColor: '#bbf7d0',
   },
   emptyState: {
     alignItems: 'center',
@@ -383,4 +513,19 @@ const styles = StyleSheet.create({
   clientCard: {
     marginBottom: 8,
   },
+  fabContainer: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    zIndex: 1000,
+  },
+  fabButton: {
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+
 });

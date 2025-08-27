@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -17,6 +18,7 @@ interface Client {
 }
 
 export default function ClientsScreen() {
+  const router = useRouter();
   const { clients } = useDatabase();
   const { invoices } = useDatabase();
   const [clientList, setClientList] = useState<Client[]>([]);
@@ -129,6 +131,14 @@ export default function ClientsScreen() {
     setShowEditClientModal(true);
   };
 
+  const handleViewInvoices = (client: Client) => {
+    // Navigate to invoices screen with client filter
+    router.push({
+      pathname: '/invoices',
+      params: { clientId: client.id, clientName: client.name }
+    });
+  };
+
   const clearSearch = () => {
     setSearchQuery('');
   };
@@ -209,6 +219,7 @@ export default function ClientsScreen() {
                 client={client}
                 onEdit={() => handleEditClient(client)}
                 onDelete={() => handleDeleteClient(client)}
+                onInvoices={() => handleViewInvoices(client)}
                 style={styles.clientCard}
               />
             ))
@@ -230,7 +241,6 @@ export default function ClientsScreen() {
         visible={showAddClientModal}
         onClose={() => {
           setShowAddClientModal(false);
-          loadClients(); // Reload data after adding client
         }}
         onRefresh={refreshData}
       />

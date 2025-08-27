@@ -1,8 +1,11 @@
+import { useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Button, InvoiceCard, StatCard } from '../../components';
+import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Button, InvoiceCard } from '../../components';
+import { AddClientModal } from '../../components/modals/AddClientModal';
 import { AddInvoiceModal } from '../../components/modals/AddInvoiceModal';
+import { EditInvoiceModal } from '../../components/modals/EditInvoiceModal';
 import { Dropdown } from '../../components/ui/Dropdown';
 import { useDatabase } from '../../context/DatabaseContext';
 
@@ -25,12 +28,16 @@ interface Invoice {
 }
 
 export default function InvoicesScreen() {
+  const params = useLocalSearchParams();
   const { clients, invoices, reports } = useDatabase();
   
   const [clientList, setClientList] = useState<Client[]>([]);
   const [invoiceList, setInvoiceList] = useState<Invoice[]>([]);
   const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
   const [showAddInvoiceModal, setShowAddInvoiceModal] = useState(false);
+  const [showEditInvoiceModal, setShowEditInvoiceModal] = useState(false);
+  const [showAddClientModal, setShowAddClientModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClient, setSelectedClient] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
@@ -42,6 +49,15 @@ export default function InvoicesScreen() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Auto-apply client filter when navigating from client card
+  useEffect(() => {
+    if (params.clientId && typeof params.clientId === 'string') {
+      setSelectedClient(params.clientId);
+      // Clear any existing search when auto-filtering by client
+      setSearchQuery('');
+    }
+  }, [params.clientId]);
 
   useEffect(() => {
     filterInvoices();
@@ -111,8 +127,41 @@ export default function InvoicesScreen() {
     console.log('Invoice pressed:', invoiceNumber);
   };
 
+  const handleEditInvoice = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setShowEditInvoiceModal(true);
+  };
+
+  const handleDeleteInvoice = async (invoice: Invoice) => {
+    Alert.alert(
+      'Delete Invoice',
+      `Are you sure you want to delete invoice ${invoice.invoiceNo}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await invoices.delete(invoice.id);
+              Alert.alert('Success', 'Invoice deleted successfully!');
+              loadData(); // Refresh the data
+            } catch (error) {
+              console.error('Error deleting invoice:', error);
+              Alert.alert('Error', 'Failed to delete invoice. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleAddInvoice = () => {
     setShowAddInvoiceModal(true);
+  };
+
+  const handleAddClient = () => {
+    setShowAddClientModal(true);
   };
 
   // Refresh data function
@@ -168,30 +217,7 @@ export default function InvoicesScreen() {
 
         <View style={styles.spacer} />
 
-        {/* Stats Row */}
-        <View style={styles.statsRow}>
-          <StatCard
-            title="Total Invoices"
-            value={stats.totalInvoices}
-            subtitle="All time"
-            icon="house.fill"
-            variant="primary"
-            style={styles.statCard}
-          />
-          <StatCard
-            title="Total Revenue"
-            value={stats.totalRevenue}
-            subtitle="All time"
-            icon="chevron.right"
-            variant="warning"
-            style={styles.statCard}
-          />
-        </View>
-
-        <View style={styles.spacer} />
-
-        {/* Search and Filters */}
-        <View style={styles.filtersCard}>
+        <View>
           <TextInput
             style={styles.searchInput}
             value={searchQuery}
@@ -211,6 +237,14 @@ export default function InvoicesScreen() {
               value={selectedClient}
               onValueChange={handleClientFilter}
               placeholder="Select client"
+              labelColor="#111827"
+            />
+            <Button
+              title="Add Client"
+              variant="outline"
+              size="sm"
+              onPress={handleAddClient}
+              style={styles.addClientButton}
             />
           </View>
 
@@ -247,6 +281,8 @@ export default function InvoicesScreen() {
               dueDate={invoice.date} // Using same date as due date for now
               status="paid"
               onPress={() => handleInvoicePress(invoice.invoiceNo)}
+              onEdit={() => handleEditInvoice(invoice)}
+              onDelete={() => handleDeleteInvoice(invoice)}
             />
           ))
         ) : (
@@ -275,6 +311,26 @@ export default function InvoicesScreen() {
         onClose={() => {
           setShowAddInvoiceModal(false);
           loadData(); // Reload data after adding invoice
+        }}
+        onRefresh={refreshData}
+      />
+
+      {/* Edit Invoice Modal */}
+      <EditInvoiceModal
+        visible={showEditInvoiceModal}
+        invoice={selectedInvoice}
+        onClose={() => {
+          setShowEditInvoiceModal(false);
+          setSelectedInvoice(null);
+        }}
+        onRefresh={refreshData}
+      />
+
+      {/* Add Client Modal */}
+      <AddClientModal
+        visible={showAddClientModal}
+        onClose={() => {
+          setShowAddClientModal(false);
         }}
         onRefresh={refreshData}
       />
@@ -365,6 +421,12 @@ const styles = StyleSheet.create({
   },
   filterSection: {
     marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+  },
+  addClientButton: {
+    flexShrink: 0,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -390,5 +452,19 @@ const styles = StyleSheet.create({
   emptySubtext: {
     fontSize: 14,
     color: '#9ca3af',
+  },
+  autoFilterIndicator: {
+    backgroundColor: '#dbeafe',
+    borderLeftWidth: 4,
+    borderLeftColor: '#3b82f6',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  autoFilterText: {
+    fontSize: 14,
+    color: '#1e40af',
+    fontWeight: '500',
   },
 }); 

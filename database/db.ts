@@ -241,5 +241,28 @@ export async function restoreDatabase(): Promise<void> {
     }
 }
 
+// Clear all data from database
+export function clearAllData(): void {
+    try {
+        // Start transaction
+        db.execSync('BEGIN TRANSACTION;');
+        
+        // Clear all tables
+        db.execSync('DELETE FROM salary_records;');
+        db.execSync('DELETE FROM invoices;');
+        db.execSync('DELETE FROM clients;');
+        
+        // Commit transaction
+        db.execSync('COMMIT;');
+        
+        console.log('All data cleared successfully');
+    } catch (error) {
+        // Rollback on error
+        db.execSync('ROLLBACK;');
+        console.error('Error clearing data:', error);
+        throw error;
+    }
+}
+
 // Initialize database
 initDatabase(); 

@@ -1,7 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 
 export default function SplashScreen() {
   const router = useRouter();
@@ -9,23 +9,26 @@ export default function SplashScreen() {
   useEffect(() => {
     const timer = setTimeout(() => {
       router.replace("/(tabs)");
-    }, 1000);
-
+    }, 1200);
     return () => clearTimeout(timer);
   }, []);
 
   return (
     <LinearGradient
-      colors={["#3e8aad", "#273b44ff"]}
+      colors={["#f6fcf4", "#dff3f9"]}
       style={styles.container}
     >
       <View style={styles.logoContainer}>
-        <Text style={styles.logo}>📊</Text>
+        <Image 
+          source={require("../../assets/images/companylogo.png")} 
+          style={styles.logo}
+          resizeMode="contain"
+        />
         <Text style={styles.title}>EagerInvoice</Text>
         <Text style={styles.subtitle}>Smart Billing • Simplified</Text>
       </View>
 
-      <ActivityIndicator size="large" color="#fff" style={{ marginTop: 40 }} />
+      <ActivityIndicator size="large" color="#3e8aad" style={{ marginTop: 50 }} />
     </LinearGradient>
   );
 }
@@ -38,20 +41,22 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: "center",
+    paddingHorizontal: 20,
   },
   logo: {
-    fontSize: 64,
-    marginBottom: 10,
+    width: 80,
+    height: 80,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: "bold",
-    color: "#fff",
+    color: "#295162",
     letterSpacing: 1,
   },
   subtitle: {
     fontSize: 16,
-    color: "#e2e8f0",
-    marginTop: 6,
+    color: "#4b5563",
+    marginTop: 8,
   },
 });

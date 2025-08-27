@@ -86,12 +86,14 @@ export default function TabLayout() {
         <Tabs.Screen
           name="index"
           options={{
+            tabBarLabel: "Dashboard",
             tabBarIcon: ({ color }) => (
               <IconSymbol name="house.fill" size={24} color={color} />
             ),
             headerShown: true,
           }}
         />
+
         <Tabs.Screen
           name="clients"
           options={{
@@ -116,7 +118,7 @@ export default function TabLayout() {
             ),
           }}
         />
-      </Tabs>
+      </Tabs> 
     </SafeAreaView>
   );
 }
@@ -124,7 +126,7 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: 'transparent',
   },
   headerBackground: {
     flex: 0.4,
@@ -145,4 +147,4 @@ const styles = StyleSheet.create({
     shadowRadius: 40,
     elevation: 10,
   },
-});
+  });
