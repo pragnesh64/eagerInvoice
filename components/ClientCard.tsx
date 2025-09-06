@@ -1,11 +1,18 @@
-import React, { useRef, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
-import { IconSymbol } from './ui/IconSymbol';
+import { BlurView } from "expo-blur";
+import React from "react";
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  ViewStyle,
+} from "react-native";
+import { IconSymbol } from "./ui";
 
 interface Client {
   id: string;
   name: string;
-  type: 'Micro' | 'Mid' | 'Core' | 'Large Retainer';
+  type: "Micro" | "Mid" | "Core" | "Large Retainer";
   startDate: string;
   notes?: string;
 }
@@ -16,197 +23,216 @@ export interface ClientCardProps {
   onEdit?: () => void;
   onInvoices?: () => void;
   style?: ViewStyle;
+  showActions?: boolean;
 }
 
-export function ClientCard({ client, onDelete, onEdit, onInvoices, style }: ClientCardProps) {
-  const lastTap = useRef(0);
-  const DOUBLE_TAP_DELAY = 300;
-  const [isDoubleTapped, setIsDoubleTapped] = useState(false);
-
-  const handleDoubleTap = () => {
-    const now = Date.now();
-    const delta = now - lastTap.current;
-
-    if (delta < DOUBLE_TAP_DELAY) {
-      if (onEdit) onEdit();
-      setIsDoubleTapped(true);
-      setTimeout(() => setIsDoubleTapped(false), 800);
-    }
-    lastTap.current = now;
-  };
-
-  const getTypeColor = (type: Client['type']) => {
+export function ClientCard({
+  client,
+  onDelete,
+  onEdit,
+  onInvoices,
+  style,
+  showActions = true,
+}: ClientCardProps) {
+  const getTypeConfig = (type: Client["type"]) => {
     switch (type) {
-      case 'Micro':
-        return '#10b981'; // green
-      case 'Mid':
-        return '#3b82f6'; // blue
-      case 'Core':
-        return '#8b5cf6'; // purple
-      case 'Large Retainer':
-        return '#ef4444'; // red
+      case "Micro":
+        return { color: "#10b981", bg: "rgba(16, 185, 129, 0.15)" };
+      case "Mid":
+        return { color: "#3b82f6", bg: "rgba(59, 130, 246, 0.15)" };
+      case "Core":
+        return { color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.15)" };
+      case "Large Retainer":
+        return { color: "#ef4444", bg: "rgba(239, 68, 68, 0.15)" };
       default:
-        return '#6b7280'; // gray
+        return { color: "#6b7280", bg: "rgba(107, 114, 128, 0.15)" };
     }
   };
 
   const formatDate = (dateString: string) => {
     try {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) throw new Error('Invalid format');
-      const [year, month, day] = dateString.split('-').map(Number);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return "Invalid date";
+      const [year, month, day] = dateString.split("-").map(Number);
       const date = new Date(year, month - 1, day);
-      if (isNaN(date.getTime())) throw new Error('Invalid date');
-      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+      if (isNaN(date.getTime())) return "Invalid date";
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
     } catch {
-      return 'Invalid date';
+      return "Invalid date";
     }
   };
 
+  const typeConfig = getTypeConfig(client.type);
+
   return (
-    <View style={[styles.container, style, isDoubleTapped && styles.doubleTapped]}>
-      <TouchableOpacity style={styles.cardContent} onPress={handleDoubleTap} activeOpacity={0.85}>
+    <View style={[styles.container, style]}>
+      <BlurView intensity={10} tint="light" style={styles.blurView}>
+        {/* Glossy shine overlay */}
+        <View />
+
+        {/* Content */}
         <View style={styles.content}>
-          {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.name}>{client.name}</Text>
-            <View style={styles.headerRight}>
-              <View style={[styles.badge, { backgroundColor: getTypeColor(client.type) }]}>
-                <Text style={styles.badgeText}>{client.type}</Text>
-              </View>
-              {onEdit && <IconSymbol name="hand.tap" size={16} color="#9ca3af" style={styles.editHint} />}
-            </View>
-          </View>
-
-          {/* Details */}
-          <View style={styles.details}>
-            <View style={styles.detailRow}>
-              <IconSymbol name="calendar" size={16} color="#9ca3af" />
-              <Text style={styles.detailText}>Started: {formatDate(client.startDate)}</Text>
-            </View>
-
-            {client.notes && (
-              <View style={styles.detailRow}>
-                <IconSymbol name="note.text" size={16} color="#9ca3af" />
-                <Text style={styles.detailText} numberOfLines={2}>
-                  {client.notes}
+            <View style={styles.titleSection}>
+              <Text style={styles.clientName}>{client.name}</Text>
+              <View style={styles.metaRow}>
+                <IconSymbol name="calendar" size={14} color="#cbd5e1" />
+                <Text style={styles.startDate}>
+                  Started {formatDate(client.startDate)}
                 </Text>
               </View>
+            </View>
+
+            <View style={[styles.typeBadge, { backgroundColor: typeConfig.bg }]}>
+              <Text style={[styles.typeText, { color: typeConfig.color }]}>
+                {client.type}
+              </Text>
+            </View>
+          </View>
+
+          {client.notes && (
+            <View style={styles.notesSection}>
+              <IconSymbol name="note.text" size={14} color="#cbd5e1" />
+              <Text style={styles.notesText} numberOfLines={2}>
+                {client.notes}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Actions */}
+        {showActions && (onEdit || onInvoices || onDelete) && (
+          <View style={styles.actions}>
+            {onEdit && (
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={onEdit}
+                activeOpacity={0.6}
+              >
+                <IconSymbol name="pencil" size={16} color="#3b82f6" />
+                <Text style={[styles.actionText, { color: "#3b82f6" }]}>
+                  Edit
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {onInvoices && (
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={onInvoices}
+                activeOpacity={0.6}
+              >
+                <IconSymbol name="doc.text.fill" size={16} color="#10b981" />
+                <Text style={[styles.actionText, { color: "#10b981" }]}>
+                  Invoices
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {onDelete && (
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={onDelete}
+                activeOpacity={0.6}
+              >
+                <IconSymbol name="trash" size={16} color="#ef4444" />
+                <Text style={[styles.actionText, { color: "#ef4444" }]}>
+                  Delete
+                </Text>
+              </TouchableOpacity>
             )}
           </View>
-        </View>
-      </TouchableOpacity>
-
-      {/* Action Buttons */}
-      <View style={styles.actionButtons}>
-        <TouchableOpacity style={styles.actionButton} onPress={onEdit}>
-          <Text style={styles.actionButtonText}>Edit</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton} onPress={onInvoices}>
-          <Text style={styles.actionButtonText}>Invoices</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionButton, styles.deleteButton]} onPress={onDelete}>
-          <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Delete</Text>
-        </TouchableOpacity>
-      </View>
+        )}
+      </BlurView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#17313E', // dark modern background
-    borderRadius: 14,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 3,
-    marginBottom: 12,
-  },
-  doubleTapped: {
-    opacity: 0.9,
-    borderColor: '#ef4444',
+    marginBottom: 18,
+    borderRadius: 20,
+    overflow: "hidden",
+    backdropFilter: "blur(10px)",
+    backgroundColor: "rgba(21, 21, 21, 0.26)",
     borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.43)",
   },
-  cardContent: {
+  blurView: {
     flex: 1,
-    marginBottom: 12,
+    borderRadius: 20,
+    overflow: "hidden",
+    backdropFilter: "blur(10px)",
   },
   content: {
-    flex: 1,
+    padding: 18,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 10,
   },
-  name: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#f9fafb',
+  titleSection: {
+    flex: 1,
+    marginRight: 10,
   },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  clientName: {
+    fontSize: 19,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 4,
   },
-  badge: {
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  startDate: {
+    fontSize: 13,
+    color: "#d1d5db",
+  },
+  typeBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 999,
-    minWidth: 80,
-    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
   },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#ffffff',
+  typeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
   },
-  editHint: {
-    marginTop: -2,
+  notesSection: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginTop: 6,
+    gap: 6,
   },
-  details: {
-    gap: 10,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  detailText: {
+  notesText: {
+    flex: 1,
     fontSize: 14,
-    color: '#d1d5db',
-    flex: 1,
+    color: "#f1f5f9",
   },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 0,
-    paddingTop: 12,
+  actions: {
+    flexDirection: "row",
     borderTopWidth: 1,
-    borderTopColor: '#374151',
+    borderTopColor: "rgba(255,255,255,0.15)",
   },
-  actionButton: {
+  actionBtn: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#374151',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    gap: 6,
   },
-  actionButtonText: {
+  actionText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#f9fafb',
-  },
-  deleteButton: {
-    backgroundColor: '#dc2626',
-  },
-  deleteButtonText: {
-    color: '#ffffff',
+    fontWeight: "600",
   },
 });

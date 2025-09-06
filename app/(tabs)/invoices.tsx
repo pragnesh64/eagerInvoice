@@ -1,12 +1,10 @@
+import { BlurView } from 'expo-blur';
 import { useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Button, InvoiceCard } from '../../components';
-import { AddClientModal } from '../../components/modals/AddClientModal';
-import { AddInvoiceModal } from '../../components/modals/AddInvoiceModal';
-import { EditInvoiceModal } from '../../components/modals/EditInvoiceModal';
-import { Dropdown } from '../../components/ui/Dropdown';
+import { Alert, ImageBackground, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { AddInvoiceModal, Button, Dropdown, EditInvoiceModal, IconSymbol, InvoiceCard } from '../../components';
+import { Colors } from '../../constants/Colors';
 import { useDatabase } from '../../context/DatabaseContext';
 
 interface Client {
@@ -36,7 +34,6 @@ export default function InvoicesScreen() {
   const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
   const [showAddInvoiceModal, setShowAddInvoiceModal] = useState(false);
   const [showEditInvoiceModal, setShowEditInvoiceModal] = useState(false);
-  const [showAddClientModal, setShowAddClientModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClient, setSelectedClient] = useState<string>('all');
@@ -160,10 +157,6 @@ export default function InvoicesScreen() {
     setShowAddInvoiceModal(true);
   };
 
-  const handleAddClient = () => {
-    setShowAddClientModal(true);
-  };
-
   // Refresh data function
   const refreshData = () => {
     loadData();
@@ -192,44 +185,68 @@ export default function InvoicesScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
+      <ImageBackground
+        source={require('../../assets/images/bgimage.jpg')}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      >
+        <BlurView intensity={20} tint="light" style={styles.blurOverlay} />
+        <View style={styles.darkOverlay} />
+        <View style={[styles.container, styles.loadingContainer]}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </ImageBackground>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
+    <ImageBackground
+      source={require('../../assets/images/bgimage.jpg')}
+      style={styles.backgroundImage}
+      resizeMode="cover"
+    >
+      <BlurView intensity={20} tint="light" style={styles.blurOverlay} />
+      <View style={styles.darkOverlay} />
+      <View style={styles.container}>
+        <StatusBar style="light" />
       
-      <ScrollView 
-        style={styles.scrollView} 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.mainTitle}>Invoices</Text>
-          <Text style={styles.subtitle}>Track and manage your invoices</Text>
-        </View>
+        <ScrollView 
+          style={styles.scrollView} 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.mainTitle}>Invoices</Text>
+            <Text style={styles.subtitle}>Track and manage your invoices</Text>
+          </View>
 
-        <View style={styles.spacer} />
+          <View style={styles.spacer} />
 
-        <View>
-          <TextInput
-            style={styles.searchInput}
-            value={searchQuery}
-            onChangeText={handleSearch}
-            placeholder="Search invoices..."
-            placeholderTextColor="#9ca3af"
-            returnKeyType="search"
-            clearButtonMode={Platform.OS === 'ios' ? 'while-editing' : 'never'}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+          {/* Search Bar */}
+          <View style={styles.searchBarContainer}>
+            <IconSymbol name="magnifyingglass" size={20} color={Colors.light.textMuted} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search invoices..."
+              placeholderTextColor={Colors.light.textMuted}
+              value={searchQuery}
+              onChangeText={handleSearch}
+              returnKeyType="search"
+              clearButtonMode={Platform.OS === 'ios' ? 'while-editing' : 'never'}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <IconSymbol name="xmark.circle.fill" size={20} color={Colors.light.textMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
           
+          {/* Filter Section */}
           <View style={styles.filterSection}>
             <Dropdown
               label="Filter by Client"
@@ -239,109 +256,112 @@ export default function InvoicesScreen() {
               placeholder="Select client"
               labelColor="#111827"
             />
-            <Button
-              title="Add Client"
-              variant="outline"
-              size="sm"
-              onPress={handleAddClient}
-              style={styles.addClientButton}
-            />
+            
+            {(searchQuery || selectedClient !== 'all') && (
+              <Button
+                title="Clear Filters"
+                variant="ghost"
+                size="sm"
+                onPress={clearFilters}
+              />
+            )}
           </View>
 
-          {(searchQuery || selectedClient !== 'all') && (
-            <Button
-              title="Clear Filters"
-              variant="ghost"
-              size="sm"
-              onPress={clearFilters}
-            />
+          <View style={styles.spacer} />
+
+          {/* Invoices List */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              {filteredInvoices.length === 0 ? 'No Invoices Found' : `Recent Invoices (${filteredInvoices.length})`}
+            </Text>
+            <Button title="Add Invoice" variant="primary" size="sm" onPress={handleAddInvoice} />
+          </View>
+
+          <View style={styles.smallSpacer} />
+
+          {filteredInvoices.length > 0 ? (
+            filteredInvoices.map((invoice) => (
+              <InvoiceCard
+                key={invoice.id}
+                invoiceNumber={invoice.invoiceNo}
+                clientName={invoice.clientName || 'Unknown Client'}
+                amount={invoice.amount}
+                date={invoice.date}
+                dueDate={invoice.date} // Using same date as due date for now
+                status="paid"
+                onPress={() => handleInvoicePress(invoice.invoiceNo)}
+                onEdit={() => handleEditInvoice(invoice)}
+                onDelete={() => handleDeleteInvoice(invoice)}
+              />
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>
+                {searchQuery || selectedClient !== 'all'
+                  ? 'No invoices match your filters' 
+                  : 'No invoices yet'
+                }
+              </Text>
+              <Text style={styles.emptySubtext}>
+                {searchQuery || selectedClient !== 'all'
+                  ? 'Try adjusting your search or filters'
+                  : 'Create your first invoice to get started'
+                }
+              </Text>
+            </View>
           )}
-        </View>
 
-        <View style={styles.spacer} />
+          <View style={styles.largeSpacer} />
+        </ScrollView>
 
-        {/* Invoices List */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            {filteredInvoices.length === 0 ? 'No Invoices Found' : `Recent Invoices (${filteredInvoices.length})`}
-          </Text>
-          <Button title="Add Invoice" variant="primary" size="sm" onPress={handleAddInvoice} />
-        </View>
+        {/* Add Invoice Modal */}
+        <AddInvoiceModal
+          visible={showAddInvoiceModal}
+          onClose={() => {
+            setShowAddInvoiceModal(false);
+            loadData(); // Reload data after adding invoice
+          }}
+          onRefresh={refreshData}
+        />
 
-        <View style={styles.smallSpacer} />
+        {/* Edit Invoice Modal */}
+        <EditInvoiceModal
+          visible={showEditInvoiceModal}
+          invoice={selectedInvoice}
+          onClose={() => {
+            setShowEditInvoiceModal(false);
+            setSelectedInvoice(null);
+          }}
+          onRefresh={refreshData}
+        />
 
-        {filteredInvoices.length > 0 ? (
-          filteredInvoices.map((invoice) => (
-            <InvoiceCard
-              key={invoice.id}
-              invoiceNumber={invoice.invoiceNo}
-              clientName={invoice.clientName || 'Unknown Client'}
-              amount={invoice.amount}
-              date={invoice.date}
-              dueDate={invoice.date} // Using same date as due date for now
-              status="paid"
-              onPress={() => handleInvoicePress(invoice.invoiceNo)}
-              onEdit={() => handleEditInvoice(invoice)}
-              onDelete={() => handleDeleteInvoice(invoice)}
-            />
-          ))
-        ) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>
-              {searchQuery || selectedClient !== 'all'
-                ? 'No invoices match your filters' 
-                : 'No invoices yet'
-              }
-            </Text>
-            <Text style={styles.emptySubtext}>
-              {searchQuery || selectedClient !== 'all'
-                ? 'Try adjusting your search or filters'
-                : 'Create your first invoice to get started'
-              }
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.largeSpacer} />
-      </ScrollView>
-
-      {/* Add Invoice Modal */}
-      <AddInvoiceModal
-        visible={showAddInvoiceModal}
-        onClose={() => {
-          setShowAddInvoiceModal(false);
-          loadData(); // Reload data after adding invoice
-        }}
-        onRefresh={refreshData}
-      />
-
-      {/* Edit Invoice Modal */}
-      <EditInvoiceModal
-        visible={showEditInvoiceModal}
-        invoice={selectedInvoice}
-        onClose={() => {
-          setShowEditInvoiceModal(false);
-          setSelectedInvoice(null);
-        }}
-        onRefresh={refreshData}
-      />
-
-      {/* Add Client Modal */}
-      <AddClientModal
-        visible={showAddClientModal}
-        onClose={() => {
-          setShowAddClientModal(false);
-        }}
-        onRefresh={refreshData}
-      />
-    </View>
+    
+      </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+  },
+  blurOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  darkOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)', // Darker overlay
+  },
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
   },
   loadingContainer: {
     justifyContent: 'center',
@@ -349,7 +369,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: '#6b7280',
+    color: Colors.light.textMuted,
   },
   scrollView: {
     flex: 1,
@@ -365,15 +385,15 @@ const styles = StyleSheet.create({
   mainTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#111827',
+    color: Colors.dark.text,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6b7280',
+    color: Colors.dark.textSecondary,
     lineHeight: 20,
-  },
-  spacer: {
+    },
+    spacer: {
     height: 16,
   },
   smallSpacer: {
@@ -390,32 +410,44 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   filtersCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.dark.card,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: Colors.dark.cardBorder,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
   },
-  searchInput: {
-    backgroundColor: '#f9fafb',
+  searchBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.dark.card,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: '#111827',
+    borderColor: Colors.dark.cardBorder,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
     marginBottom: 16,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 16,
+    color: Colors.dark.text,
     ...Platform.select({
       ios: {
-        paddingVertical: 12,
+        paddingVertical: 0,
       },
       android: {
-        paddingVertical: 8,
+        paddingVertical: 0,
       },
     }),
   },
@@ -424,9 +456,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 12,
-  },
-  addClientButton: {
-    flexShrink: 0,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -437,7 +466,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
+    color: Colors.dark.text,
   },
   emptyState: {
     alignItems: 'center',
@@ -446,17 +475,17 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#6b7280',
+    color: Colors.dark.textSecondary,
     marginBottom: 4,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: Colors.dark.textMuted,
   },
   autoFilterIndicator: {
-    backgroundColor: '#dbeafe',
+    backgroundColor: Colors.light.backgroundSecondary,
     borderLeftWidth: 4,
-    borderLeftColor: '#3b82f6',
+    borderLeftColor: Colors.dark.primary,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
@@ -464,7 +493,7 @@ const styles = StyleSheet.create({
   },
   autoFilterText: {
     fontSize: 14,
-    color: '#1e40af',
+    color: Colors.dark.primaryDark,
     fontWeight: '500',
   },
 }); 

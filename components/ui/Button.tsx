@@ -1,5 +1,7 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
+import { Colors } from '../../constants/Colors';
+import { createPressAnimation } from '../../utils/animationUtils';
 
 interface ButtonProps {
   title: string;
@@ -28,6 +30,8 @@ export function Button({
   leftIcon,
   rightIcon,
 }: ButtonProps) {
+  const scaleAnim = React.useRef(new Animated.Value(1)).current;
+  const opacityAnim = React.useRef(new Animated.Value(1)).current;
   const getButtonStyle = (): ViewStyle => {
     const baseStyle: ViewStyle = {
       borderRadius: 10,
@@ -66,19 +70,19 @@ export function Button({
     // Variant styles
     switch (variant) {
       case 'primary':
-        baseStyle.backgroundColor = '#1e40af';
-        baseStyle.shadowColor = '#1e40af';
+        baseStyle.backgroundColor = Colors.light.primary;
+        baseStyle.shadowColor = Colors.light.primary;
         baseStyle.shadowOpacity = 0.2;
         break;
       case 'secondary':
-        baseStyle.backgroundColor = '#7c3aed';
-        baseStyle.shadowColor = '#7c3aed';
+        baseStyle.backgroundColor = Colors.light.secondary;
+        baseStyle.shadowColor = Colors.light.secondary;
         baseStyle.shadowOpacity = 0.2;
         break;
       case 'outline':
         baseStyle.backgroundColor = 'transparent';
         baseStyle.borderWidth = 1.5;
-        baseStyle.borderColor = '#1e40af';
+        baseStyle.borderColor = Colors.light.primary;
         baseStyle.shadowOpacity = 0;
         baseStyle.elevation = 0;
         break;
@@ -88,8 +92,8 @@ export function Button({
         baseStyle.elevation = 0;
         break;
       case 'danger':
-        baseStyle.backgroundColor = '#dc2626';
-        baseStyle.shadowColor = '#dc2626';
+        baseStyle.backgroundColor = Colors.light.error;
+        baseStyle.shadowColor = Colors.light.error;
         baseStyle.shadowOpacity = 0.2;
         break;
     }
@@ -124,10 +128,10 @@ export function Button({
         baseTextStyle.color = '#ffffff';
         break;
       case 'outline':
-        baseTextStyle.color = '#1e40af';
+        baseTextStyle.color = Colors.light.primary;
         break;
       case 'ghost':
-        baseTextStyle.color = '#1e40af';
+        baseTextStyle.color = Colors.light.primary;
         break;
     }
 
@@ -137,25 +141,56 @@ export function Button({
   const buttonStyle = [getButtonStyle(), style];
   const textStyleCombined = [getTextStyle(), textStyle];
 
+  const pressAnimation = createPressAnimation(scaleAnim, opacityAnim);
+
+  const handlePressIn = () => {
+    if (!disabled && !loading) {
+      pressAnimation.pressIn();
+    }
+  };
+
+  const handlePressOut = () => {
+    if (!disabled && !loading) {
+      pressAnimation.pressOut();
+    }
+  };
+
   return (
-    <Pressable
-      style={({ pressed }) => [
+    <Animated.View
+      style={[
         buttonStyle,
-        pressed && !disabled && !loading && styles.pressed,
-        disabled && styles.disabled,
+        {
+          transform: [{ scale: scaleAnim }],
+          opacity: opacityAnim,
+        },
       ]}
-      onPress={onPress}
-      disabled={disabled || loading}
     >
-      {leftIcon && <View style={styles.iconContainer}>{leftIcon}</View>}
-      <Text style={textStyleCombined}>
-        {loading ? 'Loading...' : title}
-      </Text>
-      {rightIcon && <View style={styles.iconContainer}>{rightIcon}</View>}
-    </Pressable>
+      <Pressable
+        style={({ pressed }) => [
+          styles.pressable,
+          pressed && !disabled && !loading && styles.pressed,
+          disabled && styles.disabled,
+        ]}
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        disabled={disabled || loading}
+      >
+        {leftIcon && <View style={styles.iconContainer}>{leftIcon}</View>}
+        <Text style={textStyleCombined}>
+          {loading ? 'Loading...' : title}
+        </Text>
+        {rightIcon && <View style={styles.iconContainer}>{rightIcon}</View>}
+      </Pressable>
+    </Animated.View>
   );
 }
 const styles = StyleSheet.create({
+  pressable: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
   pressed: {
     opacity: 0.85,
     transform: [{ scale: 0.98 }],

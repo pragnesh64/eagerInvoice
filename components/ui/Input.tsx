@@ -1,6 +1,7 @@
 import { cva, type VariantProps } from 'class-variance-authority';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
+  Animated,
   Platform,
   TextInputProps as RNTextInputProps,
   StyleSheet,
@@ -13,6 +14,7 @@ import {
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { useColorScheme } from '../../hooks/useColorScheme';
+import { createFocusAnimation } from '../../utils/animationUtils';
 
 const inputVariants = cva(
   "flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
@@ -71,6 +73,11 @@ export function Input({
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const [isFocused, setIsFocused] = useState(false);
+  
+  // Animation refs
+  // Removed borderAnim to fix native driver conflicts
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const labelAnim = useRef(new Animated.Value(0)).current;
 
   const getContainerStyle = (): ViewStyle => {
     const baseStyle: ViewStyle = {
@@ -80,6 +87,11 @@ export function Input({
       alignItems: 'center',
       backgroundColor: colors.card,
     };
+
+    // Animate border width on focus
+    if (isFocused) {
+      baseStyle.borderWidth = 2;
+    }
 
     // Size styles
     switch (size) {
@@ -180,15 +192,45 @@ export function Input({
     };
   };
 
+  const focusAnimation = createFocusAnimation(scaleAnim, undefined, labelAnim);
+
+  const handleFocus = () => {
+    setIsFocused(true);
+    focusAnimation.focus();
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    focusAnimation.blur();
+  };
+
   return (
     <View style={containerStyle}>
       {label && (
-        <Text style={StyleSheet.flatten([getLabelStyle(), labelStyle])}>
+        <Animated.Text 
+          style={[
+            StyleSheet.flatten([getLabelStyle(), labelStyle]),
+            {
+              transform: [{ scale: labelAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 1.05]
+              })}],
+            }
+          ]}
+        >
           {label}
-        </Text>
+        </Animated.Text>
       )}
       
-      <View style={[getContainerStyle()]}>
+      <Animated.View 
+        style={[
+          getContainerStyle(),
+          {
+            transform: [{ scale: scaleAnim }],
+            borderWidth: isFocused ? 2 : 1,
+          }
+        ]}
+      >
         {leftIcon && (
           <View style={styles.iconContainer}>
             {leftIcon}
@@ -199,8 +241,8 @@ export function Input({
           style={[getInputStyle(), inputStyle]}
           placeholder={placeholder}
           placeholderTextColor={colors.textMuted}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           clearButtonMode={Platform.OS === 'ios' ? 'while-editing' : 'never'}
           autoCapitalize={textInputProps.autoCapitalize || 'sentences'}
           autoCorrect={textInputProps.autoCorrect !== undefined ? textInputProps.autoCorrect : true}
@@ -213,7 +255,7 @@ export function Input({
             {rightIcon}
           </View>
         )}
-      </View>
+      </Animated.View>
       
       {error && (
         <Text style={StyleSheet.flatten([getErrorStyle(), errorStyle])}>

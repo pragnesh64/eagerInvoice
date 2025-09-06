@@ -2,8 +2,9 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolViewProps, SymbolWeight } from 'expo-symbols';
-import { ComponentProps } from 'react';
-import { OpaqueColorValue, type StyleProp, type TextStyle } from 'react-native';
+import React, { ComponentProps, useRef } from 'react';
+import { Animated, OpaqueColorValue, TouchableOpacity, type StyleProp, type TextStyle } from 'react-native';
+import { createPressAnimation } from '../../utils/animationUtils';
 
 type IconMapping = Record<SymbolViewProps['name'], ComponentProps<typeof MaterialIcons>['name']>;
 type IconSymbolName = keyof typeof MAPPING;
@@ -31,6 +32,8 @@ const MAPPING = {
   'note.text': 'note',
   'trash': 'delete',
   'plus': 'add',
+  'pencil': 'edit',
+  'clock': 'schedule',
 } as IconMapping;
 
 /**
@@ -43,12 +46,63 @@ export function IconSymbol({
   size = 24,
   color,
   style,
+  onPress,
+  animated = false,
 }: {
   name: IconSymbolName;
   size?: number;
   color: string | OpaqueColorValue;
   style?: StyleProp<TextStyle>;
   weight?: SymbolWeight;
+  onPress?: () => void;
+  animated?: boolean;
 }) {
-  return <MaterialIcons color={color} size={size} name={MAPPING[name]} style={style} />;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const opacityAnim = useRef(new Animated.Value(1)).current;
+  
+  const pressAnimation = createPressAnimation(scaleAnim, opacityAnim);
+
+  const handlePressIn = () => {
+    if (animated && onPress) {
+      pressAnimation.pressIn();
+    }
+  };
+
+  const handlePressOut = () => {
+    if (animated && onPress) {
+      pressAnimation.pressOut();
+    }
+  };
+
+  const iconElement = (
+    <MaterialIcons 
+      color={color} 
+      size={size} 
+      name={MAPPING[name]} 
+      style={style} 
+    />
+  );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={animated ? 1 : 0.7}
+        style={{ alignItems: 'center', justifyContent: 'center' }}
+      >
+        <Animated.View
+          style={{
+            transform: [{ scale: scaleAnim }],
+            opacity: opacityAnim,
+          }}
+        >
+          {iconElement}
+        </Animated.View>
+      </TouchableOpacity>
+    );
+  }
+
+  return iconElement;
 }

@@ -3,6 +3,8 @@ import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { useDatabase } from '../../context/DatabaseContext';
 import { useColorScheme } from '../../hooks/useColorScheme';
+import { useInvoiceSync } from '../../hooks/useSyncData';
+import { validateInvoiceAmount } from '../../utils/calculationUtils';
 import { paiseToRupees, rupeesToPaise } from '../../utils/currencyUtils';
 import { Button } from '../ui/Button';
 import { DatePicker } from '../ui/DatePicker';
@@ -33,7 +35,8 @@ interface EditInvoiceModalProps {
 }
 
 export function EditInvoiceModal({ visible, invoice, onClose, onRefresh }: EditInvoiceModalProps) {
-  const { clients, invoices, salary } = useDatabase();
+  const { clients, invoices } = useDatabase();
+  const { syncAfterInvoiceOperation, syncState } = useInvoiceSync();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const [clientList, setClientList] = useState<Client[]>([]);
@@ -44,6 +47,7 @@ export function EditInvoiceModal({ visible, invoice, onClose, onRefresh }: EditI
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (visible && invoice) {
@@ -92,13 +96,24 @@ export function EditInvoiceModal({ visible, invoice, onClose, onRefresh }: EditI
       newErrors.clientId = 'Client is required';
     }
 
-    if (!formData.amount.trim()) {
-      newErrors.amount = 'Amount is required';
-    } else {
-      const amount = parseFloat(formData.amount);
-      if (isNaN(amount) || amount <= 0) {
-        newErrors.amount = 'Amount must be a positive number';
-      }
+    // Use centralized validation
+    const amountValidation = validateInvoiceAmount(formData.amount);
+    if (!amountValidation.isValid) {
+      newErrors.amount = amountValidation.error || 'Invalid amount';
+    }
+
+    // Validate date is not in the future
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // End of today
+    if (formData.date > today) {
+      newErrors.date = 'Invoice date cannot be in the future';
+    }
+
+    // Validate date is not too old (e.g., more than 5 years ago)
+    const fiveYearsAgo = new Date();
+    fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+    if (formData.date < fiveYearsAgo) {
+      newErrors.date = 'Invoice date cannot be more than 5 years ago';
     }
 
     setErrors(newErrors);
@@ -106,22 +121,42 @@ export function EditInvoiceModal({ visible, invoice, onClose, onRefresh }: EditI
   };
 
   const handleSubmit = async () => {
-    if (!validateForm() || !invoice) {
+    if (!validateForm() || !invoice || isSubmitting) {
       return;
     }
 
+    setIsSubmitting(true);
+
     try {
+      const amountValidation = validateInvoiceAmount(formData.amount);
+      if (!amountValidation.isValid || !amountValidation.value) {
+        Alert.alert('Error', 'Invalid amount');
+        return;
+      }
+
+      const originalMonth = new Date(invoice.date).toISOString().slice(0, 7);
+      const newMonth = formData.date.toISOString().slice(0, 7);
+
+      // Update the invoice
       await invoices.update(invoice.id, {
         clientId: formData.clientId,
-        amount: rupeesToPaise(parseFloat(formData.amount)), // Convert to paise
+        amount: rupeesToPaise(amountValidation.value),
         date: formData.date.toISOString().split('T')[0],
       });
 
-      // Calculate and update salary for the invoice month
-      const invoiceMonth = formData.date.toISOString().slice(0, 7);
-      await salary.calculateAndUpdateSalary(invoiceMonth);
+      // Trigger real-time synchronization for commission and profit calculations
+      if (originalMonth !== newMonth) {
+        // Month changed - sync both months
+        await syncAfterInvoiceOperation('update', { 
+          month: newMonth, 
+          oldMonth: originalMonth 
+        });
+      } else {
+        // Same month - sync current month
+        await syncAfterInvoiceOperation('update', { month: newMonth });
+      }
 
-      Alert.alert('Success', 'Invoice updated successfully!');
+      Alert.alert('Success', 'Invoice updated successfully! Commission and profit recalculated.');
       
       // Refresh the parent component's data
       if (onRefresh) {
@@ -132,6 +167,8 @@ export function EditInvoiceModal({ visible, invoice, onClose, onRefresh }: EditI
     } catch (error) {
       console.error('Error updating invoice:', error);
       Alert.alert('Error', 'Failed to update invoice. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -269,7 +306,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   modalTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '600',
   },
   formScrollView: {

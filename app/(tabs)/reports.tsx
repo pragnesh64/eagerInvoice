@@ -1,18 +1,11 @@
+import { BlurView } from 'expo-blur';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import { Alert, Dimensions, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { LineChart } from 'react-native-chart-kit';
+import { Alert, ImageBackground, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, StatCard } from '../../components';
+import { Colors } from '../../constants/Colors';
 import { useDatabase } from '../../context/DatabaseContext';
-import {
-  downloadCSV,
-  downloadPDF,
-  exportClientsToCSV,
-  exportInvoicesToCSV,
-  exportReportToCSV,
-  generatePDFReport,
-  shareData
-} from '../../utils/exportUtils';
+import { downloadPDF } from '../../utils/exportUtils';
 
 interface Client {
   id: string;
@@ -87,8 +80,7 @@ export default function ReportsScreen() {
       totalNetProfit: 0,
     },
   });
-  const [clientList, setClientList] = useState<Client[]>([]);
-  const [invoiceList, setInvoiceList] = useState<Invoice[]>([]);
+
 
   useEffect(() => {
     loadData();
@@ -98,32 +90,9 @@ export default function ReportsScreen() {
     try {
       setIsLoading(true);
 
-      // Load clients and invoices
+      // Load clients and invoices for report data
       const allClients = await clients.getAll();
       const allInvoices = await invoices.getAll();
-      
-      // Map clients to proper interface
-      setClientList(allClients.map(client => ({
-        id: client.id,
-        name: client.name,
-        type: client.type,
-        startDate: client.startDate,
-        notes: client.notes,
-        createdAt: client.createdAt,
-        updatedAt: client.updatedAt
-      })));
-      
-      // Map invoices to proper interface with client names
-      setInvoiceList(allInvoices.map(invoice => ({
-        id: invoice.id,
-        invoiceNo: invoice.invoiceNo,
-        clientId: invoice.clientId,
-        clientName: invoice.clientName || 'Unknown Client',
-        amount: invoice.amount,
-        date: invoice.date,
-        createdAt: invoice.createdAt,
-        updatedAt: invoice.updatedAt
-      })));
 
       // Load monthly overview
       const currentMonth = new Date().toISOString().slice(0, 7);
@@ -175,64 +144,15 @@ export default function ReportsScreen() {
     }
   };
 
-  const handleExportCSV = async (type: 'clients' | 'invoices' | 'reports') => {
-    setIsExporting(true);
-    try {
-      let data: string;
-      let filename: string;
-      
-      switch (type) {
-        case 'clients':
-          data = exportClientsToCSV(clientList);
-          filename = `clients_${new Date().toISOString().split('T')[0]}.csv`;
-          break;
-        case 'invoices':
-          data = exportInvoicesToCSV(invoiceList);
-          filename = `invoices_${new Date().toISOString().split('T')[0]}.csv`;
-          break;
-        case 'reports':
-          data = exportReportToCSV(reportData);
-          filename = `business_report_${new Date().toISOString().split('T')[0]}.csv`;
-          break;
-      }
-      
-      downloadCSV(data, filename);
-      Alert.alert('Success', `${type.charAt(0).toUpperCase() + type.slice(1)} exported successfully!`);
-    } catch (error) {
-      console.error('Error exporting data:', error);
-      Alert.alert('Error', 'Failed to export data. Please try again.');
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
   const handleExportPDF = async () => {
     setIsExporting(true);
     try {
-      const data = generatePDFReport(reportData);
       const filename = `business_report_${new Date().toISOString().split('T')[0]}.pdf`;
-      
-      downloadPDF(data, filename);
-      Alert.alert('Success', 'PDF report generated successfully!');
+      await downloadPDF(reportData, filename);
+      Alert.alert('Success', `Report saved and shared successfully!`);
     } catch (error) {
-      console.error('Error generating PDF:', error);
-      Alert.alert('Error', 'Failed to generate PDF. Please try again.');
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  const handleShareReport = async () => {
-    setIsExporting(true);
-    try {
-      const data = generatePDFReport(reportData);
-      const filename = `business_report_${new Date().toISOString().split('T')[0]}.pdf`;
-      
-      shareData(data, filename, 'pdf');
-      Alert.alert('Success', 'Report shared successfully!');
-    } catch (error) {
-      console.error('Error sharing report:', error);
-      Alert.alert('Error', 'Failed to share report. Please try again.');
+      console.error('Error generating report:', error);
+      Alert.alert('Error', 'Failed to generate report. Please try again.');
     } finally {
       setIsExporting(false);
     }
@@ -240,260 +160,182 @@ export default function ReportsScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
+      <ImageBackground
+        source={require('../../assets/images/bgimage.jpg')}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      >
+        <BlurView intensity={20} tint="light" style={styles.blurOverlay} />
+        <View style={styles.darkOverlay} />
+        <View style={[styles.container, styles.loadingContainer]}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </ImageBackground>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
-      
-      <ScrollView 
-        style={styles.scrollView} 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.mainTitle}>Reports</Text>
-          <Text style={styles.subtitle}>Analytics and insights</Text>
-        </View>
+    <ImageBackground
+      source={require('../../assets/images/bgimage.jpg')}
+      style={styles.backgroundImage}
+      resizeMode="cover"
+    >
+      <BlurView intensity={20} tint="light" style={styles.blurOverlay} />
+      <View style={styles.darkOverlay} />
+      <View style={styles.container}>
+        <StatusBar style="light" />
 
-        <View style={styles.spacer} />
-
-        {/* Export Card */}
-        <View style={styles.exportCard}>
-          <View style={styles.exportContent}>
-            <View>
-              <Text style={styles.exportTitle}>Export Reports</Text>
-              <Text style={styles.exportSubtitle}>Download PDF or CSV reports</Text>
-            </View>
-            <View style={styles.exportButtons}>
-              <Button 
-                title="PDF" 
-                variant="primary" 
-                size="sm" 
-                onPress={handleExportPDF}
-                disabled={isExporting}
-              />
-              <Button 
-                title="Share" 
-                variant="secondary" 
-                size="sm" 
-                onPress={handleShareReport}
-                disabled={isExporting}
-              />
-            </View>
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.mainTitle}>Reports</Text>
+            <Text style={styles.subtitle}>Analytics and insights</Text>
           </View>
-          
-          <View style={styles.csvExportSection}>
-            <Text style={styles.csvTitle}>Export Data as CSV</Text>
-            <View style={styles.csvButtons}>
-              <Button 
-                title="Clients" 
-                variant="outline" 
-                size="sm" 
-                onPress={() => handleExportCSV('clients')}
-                disabled={isExporting}
-              />
-              <Button 
-                title="Invoices" 
-                variant="outline" 
-                size="sm" 
-                onPress={() => handleExportCSV('invoices')}
-                disabled={isExporting}
-              />
-              <Button 
-                title="Reports" 
-                variant="outline" 
-                size="sm" 
-                onPress={() => handleExportCSV('reports')}
-                disabled={isExporting}
-              />
-            </View>
-          </View>
-        </View>
 
-        <View style={styles.spacer} />
+          <View style={styles.spacer} />
 
-        {/* Business Overview */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Business Overview</Text>
-        </View>
-
-        <View style={styles.statsRow}>
-          <StatCard
-            title="Revenue"
-            value={reportData.monthlyRevenue}
-            subtitle="Total this month"
-            icon="house.fill"
-            variant="primary"
-            style={styles.statCard}
-          />
-          <StatCard
-            title="Net Profit"
-            value={reportData.netProfit}
-            subtitle="After salary"
-            icon="chevron.right"
-            variant="success"
-            style={styles.statCard}
-          />
-        </View>
-
-        <View style={styles.spacer} />
-
-        {/* Salary Breakdown */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Salary Breakdown</Text>
-        </View>
-
-        <View style={styles.salaryCard}>
-          <View style={styles.salaryRow}>
-            <Text style={styles.salaryLabel}>Retainer:</Text>
-            <Text style={styles.salaryValue}>₹{reportData.salary.retainer.toLocaleString()}</Text>
-          </View>
-          <View style={styles.salaryRow}>
-            <Text style={styles.salaryLabel}>Commission:</Text>
-            <Text style={styles.salaryValue}>₹{reportData.salary.commission.toLocaleString()}</Text>
-          </View>
-          <View style={[styles.salaryRow, styles.totalSalaryRow]}>
-            <Text style={styles.totalSalaryLabel}>Total Salary:</Text>
-            <Text style={styles.totalSalaryValue}>₹{reportData.salary.total.toLocaleString()}</Text>
-          </View>
-        </View>
-
-        <View style={styles.spacer} />
-
-        {/* Top Performing Clients */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Top Performing Clients</Text>
-        </View>
-
-        <View style={styles.performanceCard}>
-          {reportData.topClients.map((client, index) => (
-            <View key={client.clientId || index} style={styles.clientRow}>
-              <View style={styles.clientInfo}>
-                <Text style={styles.clientName}>{client.clientName}</Text>
-                <Text style={styles.clientRevenue}>₹{client.revenue.toLocaleString()}</Text>
+          {/* Export Card */}
+          <View style={styles.exportCard}>
+            <View style={styles.exportContent}>
+              <View>
+                <Text style={styles.exportTitle}>Export Reports</Text>
+                <Text style={styles.exportSubtitle}>Download PDF report</Text>
               </View>
-              <Text style={styles.clientPercentage}>{client.percentage.toFixed(1)}%</Text>
-            </View>
-          ))}
-          {reportData.topClients.length === 0 && (
-            <Text style={styles.emptyText}>No client data available</Text>
-          )}
-        </View>
-
-        <View style={styles.spacer} />
-
-        {/* Monthly Trend Chart */}
-        {reportData.monthlyTrends.length > 0 ? (
-          <>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Monthly Trends</Text>
-            </View>
-
-            <View style={styles.chartCard}>
-              <LineChart
-                data={{
-                  labels: reportData.monthlyTrends.map(trend => trend.month.slice(-2)),
-                  datasets: [
-                    {
-                      data: reportData.monthlyTrends.map(trend => trend.revenue / 1000),
-                      color: () => '#2563eb',
-                      strokeWidth: 2,
-                    },
-                    {
-                      data: reportData.monthlyTrends.map(trend => trend.salary / 1000),
-                      color: () => '#059669',
-                      strokeWidth: 2,
-                    },
-                    {
-                      data: reportData.monthlyTrends.map(trend => trend.netProfit / 1000),
-                      color: () => '#dc2626',
-                      strokeWidth: 2,
-                    },
-                  ],
-                  legend: ['Revenue', 'Salary', 'Net Profit'],
-                }}
-                width={Dimensions.get('window').width - 32}
-                height={220}
-                chartConfig={{
-                  backgroundColor: '#ffffff',
-                  backgroundGradientFrom: '#ffffff',
-                  backgroundGradientTo: '#ffffff',
-                  decimalPlaces: 0,
-                  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                  labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                  style: {
-                    borderRadius: 16,
-                  },
-                  propsForDots: {
-                    r: '4',
-                    strokeWidth: '2',
-                  },
-                  formatYLabel: (value) => `${value}k`,
-                }}
-                bezier
-                style={{
-                  marginVertical: 8,
-                  borderRadius: 16,
-                }}
-              />
-              <View style={styles.chartLegend}>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: '#2563eb' }]} />
-                  <Text style={styles.legendText}>Revenue</Text>
-                </View>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: '#059669' }]} />
-                  <Text style={styles.legendText}>Salary</Text>
-                </View>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: '#dc2626' }]} />
-                  <Text style={styles.legendText}>Net Profit</Text>
-                </View>
+              <View style={styles.exportButtons}>
+                <Button 
+                  title="Download PDF" 
+                  variant="primary" 
+                  size="sm" 
+                  onPress={handleExportPDF}
+                  disabled={isExporting}
+                />
               </View>
             </View>
-          </>
-        ) : (
-          <Text style={styles.emptyText}>No trend data available</Text>
-        )}
-
-        <View style={styles.spacer} />
-
-        {/* All-time Summary */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>All-time Summary</Text>
-        </View>
-
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Revenue:</Text>
-            <Text style={styles.summaryValue}>₹{reportData.allTimeSummary.totalRevenue.toLocaleString()}</Text>
           </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Salary Paid:</Text>
-            <Text style={styles.summaryValue}>₹{reportData.allTimeSummary.totalSalaryPaid.toLocaleString()}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Net Profit:</Text>
-            <Text style={styles.summaryValue}>₹{reportData.allTimeSummary.totalNetProfit.toLocaleString()}</Text>
-          </View>
-        </View>
 
-        <View style={styles.largeSpacer} />
-      </ScrollView>
-    </View>
+          <View style={styles.spacer} />
+
+          {/* Business Overview */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Business Overview</Text>
+          </View>
+
+          <View style={styles.statsRow}>
+            <StatCard
+              title="Revenue"
+              value={reportData.monthlyRevenue}
+              subtitle="Total this month"
+              icon="house.fill"
+              variant="primary"
+              style={styles.statCard}
+            />
+            <StatCard
+              title="Net Profit"
+              value={reportData.netProfit}
+              subtitle="After salary"
+              icon="chevron.right"
+              variant="success"
+              style={styles.statCard}
+            />
+          </View>
+
+          <View style={styles.spacer} />
+
+          {/* Salary Breakdown */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Salary Breakdown</Text>
+          </View>
+
+          <View style={styles.salaryCard}>
+            <View style={styles.salaryRow}>
+              <Text style={styles.salaryLabel}>Retainer:</Text>
+              <Text style={styles.salaryValue}>₹{reportData.salary.retainer.toLocaleString()}</Text>
+            </View>
+            <View style={styles.salaryRow}>
+              <Text style={styles.salaryLabel}>Commission:</Text>
+              <Text style={styles.salaryValue}>₹{reportData.salary.commission.toLocaleString()}</Text>
+            </View>
+            <View style={[styles.salaryRow, styles.totalSalaryRow]}>
+              <Text style={styles.totalSalaryLabel}>Total Salary:</Text>
+              <Text style={styles.totalSalaryValue}>₹{reportData.salary.total.toLocaleString()}</Text>
+            </View>
+          </View>
+
+          <View style={styles.spacer} />
+
+          {/* Top Performing Clients */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Top Performing Clients</Text>
+          </View>
+
+          <View style={styles.performanceCard}>
+            {reportData.topClients.map((client, index) => (
+              <View key={client.clientId || index} style={styles.clientRow}>
+                <View style={styles.clientInfo}>
+                  <Text style={styles.clientName}>{client.clientName}</Text>
+                  <Text style={styles.clientRevenue}>₹{client.revenue.toLocaleString()}</Text>
+                </View>
+                <Text style={styles.clientPercentage}>{client.percentage.toFixed(1)}%</Text>
+              </View>
+            ))}
+            {reportData.topClients.length === 0 && (
+              <Text style={styles.emptyText}>No client data available</Text>
+            )}
+          </View>
+
+          <View style={styles.spacer} />
+
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>All-time Summary</Text>
+          </View>
+
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Total Revenue:</Text>
+              <Text style={styles.summaryValue}>₹{reportData.allTimeSummary.totalRevenue.toLocaleString()}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Total Salary Paid:</Text>
+              <Text style={styles.summaryValue}>₹{reportData.allTimeSummary.totalSalaryPaid.toLocaleString()}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Total Net Profit:</Text>
+              <Text style={styles.summaryValue}>₹{reportData.allTimeSummary.totalNetProfit.toLocaleString()}</Text>
+            </View>
+          </View>
+
+          <View style={styles.largeSpacer} />
+        </ScrollView>
+      </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+  },
+  blurOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  darkOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)', // Darker overlay
+  },
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
   },
   loadingContainer: {
     justifyContent: 'center',
@@ -501,7 +343,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: '#6b7280',
+    color: Colors.dark.textMuted,
   },
   scrollView: {
     flex: 1,
@@ -516,12 +358,12 @@ const styles = StyleSheet.create({
   mainTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#111827',
+    color: Colors.dark.text,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6b7280',
+    color: Colors.dark.textSecondary,
     lineHeight: 20,
   },
   spacer: {
@@ -531,11 +373,11 @@ const styles = StyleSheet.create({
     height: 32,
   },
   exportCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.dark.card,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: Colors.dark.cardBorder,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -551,12 +393,12 @@ const styles = StyleSheet.create({
   exportTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: Colors.dark.text,
     marginBottom: 2,
   },
   exportSubtitle: {
     fontSize: 12,
-    color: '#6b7280',
+    color: Colors.dark.textSecondary,
   },
   exportButtons: {
     flexDirection: 'row',
@@ -564,13 +406,13 @@ const styles = StyleSheet.create({
   },
   csvExportSection: {
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: Colors.dark.borderLight,
     paddingTop: 16,
   },
   csvTitle: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#374151',
+    color: Colors.dark.textSecondary,
     marginBottom: 8,
   },
   csvButtons: {
@@ -583,7 +425,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
+    color: Colors.dark.text,
   },
   statsRow: {
     flexDirection: 'row',
@@ -593,11 +435,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   salaryCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.dark.card,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: Colors.dark.cardBorder,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -612,35 +454,35 @@ const styles = StyleSheet.create({
   },
   salaryLabel: {
     fontSize: 14,
-    color: '#6b7280',
+    color: Colors.dark.textSecondary,
   },
   salaryValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    color: Colors.dark.text,
   },
   totalSalaryRow: {
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: Colors.dark.borderLight,
     marginTop: 8,
     paddingTop: 12,
   },
   totalSalaryLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: Colors.dark.text,
   },
   totalSalaryValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#059669',
+    color: Colors.dark.success,
   },
   performanceCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.dark.card,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: Colors.dark.cardBorder,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -659,24 +501,24 @@ const styles = StyleSheet.create({
   clientName: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#111827',
+    color: Colors.dark.text,
     marginBottom: 2,
   },
   clientRevenue: {
     fontSize: 12,
-    color: '#6b7280',
+    color: Colors.dark.textSecondary,
   },
   clientPercentage: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1e40af',
+    color: Colors.dark.primaryDark,
   },
   summaryCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.dark.card,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: Colors.dark.cardBorder,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -692,19 +534,19 @@ const styles = StyleSheet.create({
   summaryLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#111827',
+    color: Colors.dark.text,
   },
   summaryValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: Colors.dark.textSecondary,
   },
   chartCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.dark.card,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: Colors.dark.cardBorder,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -729,11 +571,11 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 12,
-    color: '#6b7280',
+    color: Colors.dark.textSecondary,
   },
   emptyText: {
     textAlign: 'center',
-    color: '#6b7280',
+    color: Colors.dark.textSecondary,
     fontSize: 14,
     padding: 16,
   },

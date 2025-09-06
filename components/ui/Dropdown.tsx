@@ -1,11 +1,13 @@
 import { Picker } from "@react-native-picker/picker";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
+  Animated,
   Platform,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { createFocusAnimation } from "../../utils/animationUtils";
 
 interface Option {
   label: string;
@@ -34,30 +36,63 @@ export function Dropdown({
   labelColor = "#f9fafb",
 }: DropdownProps) {
   const [isFocused, setIsFocused] = useState(false);
+  
+  // Animation refs
+  // Removed borderAnim to fix native driver conflicts
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const labelAnim = useRef(new Animated.Value(0)).current;
+  
+  const focusAnimation = createFocusAnimation(scaleAnim, undefined, labelAnim);
+
+  const handleFocus = () => {
+    setIsFocused(true);
+    focusAnimation.focus();
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    focusAnimation.blur();
+  };
 
   return (
     <View style={styles.container}>
       {label && (
-        <Text style={[styles.label, error && styles.labelError, { color: labelColor }]}>
+        <Animated.Text 
+          style={[
+            styles.label, 
+            error && styles.labelError, 
+            { color: labelColor },
+            {
+              transform: [{ scale: labelAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 1.05]
+              })}],
+            }
+          ]}
+        >
           {label}
-        </Text>
+        </Animated.Text>
       )}
 
-      <View
+      <Animated.View
         style={[
           styles.input,
           isFocused && styles.inputFocused,
           error && styles.inputError,
+          {
+            transform: [{ scale: scaleAnim }],
+            borderWidth: isFocused ? 2 : 1,
+          }
         ]}
       >
         <Picker
           selectedValue={value}
           onValueChange={(val) => {
             onValueChange(val);
-            setIsFocused(false);
+            handleBlur();
           }}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           style={styles.picker}
           dropdownIconColor={error ? "#f87171" : "#9ca3af"}
         >
@@ -70,7 +105,7 @@ export function Dropdown({
             />
           ))}
         </Picker>
-      </View>
+      </Animated.View>
 
       {error ? (
         <Text style={styles.errorText}>{error}</Text>

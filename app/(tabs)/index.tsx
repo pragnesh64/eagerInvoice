@@ -1,17 +1,20 @@
+import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Alert, ImageBackground, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   Button,
   ClientCard,
+  EditInvoiceModal,
   InvoiceCard,
   StatCard
 } from '../../components';
-import { AddClientModal } from '../../components/modals/AddClientModal';
-import { AddInvoiceModal } from '../../components/modals/AddInvoiceModal';
-import { EditInvoiceModal } from '../../components/modals/EditInvoiceModal';
+import { MonthFilterWithPicker } from '../../components/ui/MonthFilter';
+import { Colors } from '../../constants/Colors';
 import { useDatabase } from '../../context/DatabaseContext';
+import { useDashboardMonthFilter } from '../../hooks/useMonthlyData';
+import { useDashboardSync } from '../../hooks/useSyncData';
 import { formatCurrency } from '../../utils/currencyUtils';
 
 interface Client {
@@ -47,6 +50,14 @@ const DEFAULT_SALARY: SalaryData = {
 
 export default function DashboardScreen() {
   const { clients, invoices, salary, reports } = useDatabase();
+  const { syncState, refreshDashboard, isDataStale } = useDashboardSync(30000); // Refresh every 30 seconds
+  const { 
+    selectedMonth, 
+    setSelectedMonth, 
+    dashboardData, 
+    isLoading: isMonthlyLoading, 
+    refreshData: refreshMonthlyData 
+  } = useDashboardMonthFilter();
   const router = useRouter();
 
   const [clientList, setClientList] = useState<Client[]>([]);
@@ -61,14 +72,15 @@ export default function DashboardScreen() {
     totalSalaryPaid: 0,
     netProfit: 0
   });
-  const [showAddInvoiceModal, setShowAddInvoiceModal] = useState(false);
   const [showEditInvoiceModal, setShowEditInvoiceModal] = useState(false);
-  const [showAddClientModal, setShowAddClientModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     loadData();
+    // Test background image
+    console.log('Dashboard: Testing background image visibility');
   }, []);
 
   const loadData = async () => {
@@ -130,16 +142,6 @@ export default function DashboardScreen() {
     }
   };
 
-  const handleAddInvoice = () => {
-    setShowAddInvoiceModal(true);
-  };
-
-  const handleAddClient = () => {
-    setShowAddClientModal(true);
-  };
-
-
-
   const handleInvoicePress = (invoiceNumber: string) => {
     console.log('Invoice pressed:', invoiceNumber);
   };
@@ -177,9 +179,24 @@ export default function DashboardScreen() {
     console.log('Client pressed:', clientName);
   };
 
-  const refreshData = async () => {
-    await loadData();
-  };
+  const refreshData = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshDashboard(); // This will trigger sync and data reload
+      await refreshMonthlyData(); // Refresh monthly filtered data
+      await loadData();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refreshDashboard, refreshMonthlyData]);
+
+  // Auto-refresh when data becomes stale
+  useEffect(() => {
+    if (isDataStale && !isLoading && !isRefreshing) {
+      console.log('Data is stale, refreshing...');
+      refreshData();
+    }
+  }, [isDataStale, isLoading, isRefreshing, refreshData]);
 
 
 
@@ -205,200 +222,251 @@ export default function DashboardScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
+      <ImageBackground
+        source={require('../../assets/images/bgimage.jpg')}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      >
+        <BlurView intensity={20} tint="light" style={styles.blurOverlay} />
+        <View style={styles.darkOverlay} />
+        <View style={[styles.container, styles.loadingContainer]}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </ImageBackground>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
+    <ImageBackground
+      source={require('../../assets/images/bgimage.jpg')}
+      style={styles.backgroundImage}
+      resizeMode="cover"
+    >
+      <BlurView intensity={20} tint="light" style={styles.blurOverlay} />
+      <View style={styles.darkOverlay} />
+      <View style={styles.container}>
+        <StatusBar style="light" />
 
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        <View style={styles.header}>
-          <Text style={styles.mainTitle}>Dashboard</Text>
-          <Text style={styles.subtitle}>Welcome back! Here's your overview.</Text>
-        </View>
-
-        <View style={styles.spacer} />
-
-        {/* Monthly Summary Section */}
-        <View>
-          <Text style={styles.sectionTitle}>Monthly Summary</Text>
-          <View style={styles.smallSpacer} />
-
-          <View style={styles.statsRow}>
-            <StatCard
-              title="Total Revenue"
-              value={formatCurrency(monthlyStats.revenue)}
-              subtitle="All clients this month"
-              icon="house.fill"
-              variant="primary"
-              style={styles.statCard}
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing || syncState.isSyncing}
+              onRefresh={refreshData}
+              tintColor={Colors.dark.text}
+              title="Syncing commission & profit..."
+              titleColor={Colors.dark.textSecondary}
             />
-            <StatCard
-              title="Mohit's Salary"
-              value={formatCurrency(monthlyStats.salary.total)}
-              subtitle={`Retainer: ${formatCurrency(monthlyStats.salary.retainer)} | Commission: ${formatCurrency(monthlyStats.salary.commission)}`}
-              icon="chevron.right"
-              variant="warning"
-              style={styles.statCard}
+          }
+        >
+          <View style={styles.header}>
+            <Text style={styles.mainTitle}>Dashboard</Text>
+            <Text style={styles.subtitle}>Welcome back! Here's your overview.</Text>
+          </View>
+
+          <View style={styles.spacer} />
+
+          {/* Month Filter */}
+          <View>
+            <MonthFilterWithPicker
+              selectedMonth={selectedMonth}
+              onMonthChange={setSelectedMonth}
+              label="📅 Select Month to View"
+              pastMonths={24}
+              futureMonths={6}
+              style={styles.monthFilter}
             />
           </View>
 
           <View style={styles.spacer} />
 
-          <View style={styles.profitCard}>
-            <View style={styles.profitContent}>
-              <Text style={styles.profitLabel}>Your Remaining Profit</Text>
-                          <Text style={styles.profitValue}>{formatCurrency(monthlyStats.netProfit)}</Text>
-            <Text style={styles.profitSubtitle}>
-              Revenue: {formatCurrency(monthlyStats.revenue)} - Salary: {formatCurrency(monthlyStats.salary.total)}
-            </Text>
+          {/* Monthly Summary Section */}
+          <View>
+            <Text style={styles.sectionTitle}>Monthly Summary</Text>
+            <View style={styles.smallSpacer} />
+
+            <View style={styles.statsRow}>
+              <StatCard
+                title="Total Revenue"
+                value={dashboardData ? formatCurrency(dashboardData.revenue) : formatCurrency(0)}
+                subtitle={`${dashboardData?.invoiceCount || 0} invoices • ${dashboardData?.month || 'No data'}`}
+                icon="house.fill"
+                variant="primary"
+                style={styles.statCard}
+              />
+              <StatCard
+                title="Mohit's Salary"
+                value={dashboardData ? formatCurrency(dashboardData.salary.total) : formatCurrency(0)}
+                subtitle={dashboardData ? `Retainer: ${formatCurrency(dashboardData.salary.retainer)} | Commission: ${formatCurrency(dashboardData.salary.commission)}` : 'No data'}
+                icon="chevron.right"
+                variant="warning"
+                style={styles.statCard}
+              />
             </View>
-          </View>
-        </View>
 
-        <View style={styles.spacer} />
+            <View style={styles.spacer} />
 
-        {/* All-time Summary Section */}
-        <View>
-          <Text style={styles.sectionTitle}>All-time Summary</Text>
-          <View style={styles.smallSpacer} />
-
-          <View style={styles.statsRow}>
-            <StatCard
-              title="Total Revenue"
-              value={formatCurrency(allTimeStats.totalRevenue)}
-              subtitle="Cumulative revenue"
-              icon="house.fill"
-              variant="success"
-              style={styles.statCard}
-            />
-            <StatCard
-              title="Total Paid to Mohit"
-              value={formatCurrency(allTimeStats.totalSalaryPaid)}
-              subtitle="All-time salary paid"
-              icon="chevron.right"
-              variant="warning"
-              style={styles.statCard}
-            />
+            <View style={styles.profitCard}>
+              <View style={styles.profitContent}>
+                <Text style={styles.profitLabel}>Your Remaining Profit</Text>
+                <Text style={styles.profitValue}>
+                  {dashboardData ? formatCurrency(dashboardData.netProfit) : formatCurrency(0)}
+                </Text>
+                <Text style={styles.profitSubtitle}>
+                  {dashboardData ? 
+                    `Revenue: ${formatCurrency(dashboardData.revenue)} - Salary: ${formatCurrency(dashboardData.salary.total)}` :
+                    'No data available for selected month'
+                  }
+                </Text>
+                {!dashboardData?.hasData && (
+                  <Text style={[styles.profitSubtitle, { marginTop: 4, fontStyle: 'italic' }]}>
+                    No invoices found for {dashboardData?.month || 'selected month'}
+                  </Text>
+                )}
+              </View>
+            </View>
           </View>
 
           <View style={styles.spacer} />
 
-          <View style={[styles.profitCard, styles.allTimeProfitCard]}>
-            <View style={styles.profitContent}>
-              <Text style={styles.profitLabel}>Net Profit</Text>
-                          <Text style={styles.profitValue}>{formatCurrency(allTimeStats.netProfit)}</Text>
-            <Text style={styles.profitSubtitle}>
-              Total Revenue: {formatCurrency(allTimeStats.totalRevenue)} - Total Salary: {formatCurrency(allTimeStats.totalSalaryPaid)}
-            </Text>
-            </View>
-          </View>
-        </View>
+          {/* All-time Summary Section */}
+          <View>
+            <Text style={styles.sectionTitle}>All-time Summary</Text>
+            <View style={styles.smallSpacer} />
 
-        <View style={styles.spacer} />
-        <View>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Top Clients</Text>
-            <View style={styles.headerButtons}>
-              <Button title="Add Client" variant="outline" size="sm" onPress={handleAddClient} />
-              <Button title="View All" variant="outline" size="sm" onPress={() => router.push('/clients')} />
-            </View>
-
-          </View>
-
-          <View style={styles.smallSpacer} />
-
-          {topClients.length > 0 ? (
-            topClients.map((client) => (
-              <ClientCard
-                key={client.id}
-                client={client}
-                style={styles.clientCard}
+            <View style={styles.statsRow}>
+              <StatCard
+                title="Total Revenue"
+                value={formatCurrency(allTimeStats.totalRevenue)}
+                subtitle="Cumulative revenue"
+                icon="house.fill"
+                variant="success"
+                style={styles.statCard}
               />
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No clients yet</Text>
-              <Text style={styles.emptySubtext}>Add your first client to get started</Text>
+              <StatCard
+                title="Total Paid to Mohit"
+                value={formatCurrency(allTimeStats.totalSalaryPaid)}
+                subtitle="All-time salary paid"
+                icon="chevron.right"
+                variant="warning"
+                style={styles.statCard}
+              />
             </View>
-          )}
-        </View>
-        <View style={styles.spacer} />
-        <View>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Invoices</Text>
-            <Button title="View All" variant="outline" size="sm" onPress={() => router.push('/invoices')} />
+
+            <View style={styles.spacer} />
+
+            <View style={[styles.profitCard, styles.allTimeProfitCard]}>
+              <View style={styles.profitContent}>
+                <Text style={styles.profitLabel}>Net Profit</Text>
+                <Text style={styles.profitValue}>{formatCurrency(allTimeStats.netProfit)}</Text>
+                <Text style={styles.profitSubtitle}>
+                  Total Revenue: {formatCurrency(allTimeStats.totalRevenue)} - Total Salary: {formatCurrency(allTimeStats.totalSalaryPaid)}
+                </Text>
+              </View>
+            </View>
           </View>
 
-          <View style={styles.smallSpacer} />
+          <View style={styles.spacer} />
+          <View>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Top Clients</Text>
+              <View style={styles.headerButtons}>
+                <Button title="View All" variant="outline" size="sm" onPress={() => router.push('/clients')} />
+              </View>
 
-          {recentInvoices.length > 0 ? (
-            recentInvoices.map((invoice) => (
-              <InvoiceCard
-                key={invoice.id}
-                invoiceNumber={invoice.invoiceNo}
-                clientName={invoice.clientName}
-                amount={invoice.amount}
-                date={invoice.date}
-                dueDate={invoice.date} // Using same date as due date for now
-                status="paid"
-                onPress={() => handleInvoicePress(invoice.invoiceNo)}
-                onEdit={() => handleEditInvoice(invoice)}
-                onDelete={() => handleDeleteInvoice(invoice)}
-              />
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No invoices yet</Text>
-              <Text style={styles.emptySubtext}>Create your first invoice to get started</Text>
             </View>
-          )}
-        </View>
-        <View style={styles.spacer} />
-      </ScrollView>
 
-      {/* Add Invoice Modal */}
-      <AddInvoiceModal
-        visible={showAddInvoiceModal}
-        onClose={() => setShowAddInvoiceModal(false)}
-        onRefresh={refreshData}
-      />
+            <View style={styles.smallSpacer} />
 
-      {/* Edit Invoice Modal */}
-      <EditInvoiceModal
-        visible={showEditInvoiceModal}
-        invoice={selectedInvoice}
-        onClose={() => {
-          setShowEditInvoiceModal(false);
-          setSelectedInvoice(null);
-        }}
-        onRefresh={refreshData}
-      />
+            {topClients.length > 0 ? (
+              topClients.map((client) => (
+                <ClientCard
+                  key={client.id}
+                  client={client}
+                  style={styles.clientCard}
+                  showActions={false}
+                />
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No clients yet</Text>
+                <Text style={styles.emptySubtext}>Add your first client to get started</Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.spacer} />
+          <View>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Recent Invoices</Text>
+              <Button title="View All" variant="outline" size="sm" onPress={() => router.push('/invoices')} />
+            </View>
 
-      {/* Add Client Modal */}
-      <AddClientModal
-        visible={showAddClientModal}
-        onClose={() => {
-          setShowAddClientModal(false);
-        }}
-        onRefresh={refreshData}
-      />
-    </View>
+            <View style={styles.smallSpacer} />
+
+            {recentInvoices.length > 0 ? (
+              recentInvoices.map((invoice) => (
+                <InvoiceCard
+                  key={invoice.id}
+                  invoiceNumber={invoice.invoiceNo}
+                  clientName={invoice.clientName}
+                  amount={invoice.amount}
+                  date={invoice.date}
+                  dueDate={invoice.date} 
+                  status="paid"
+                  onPress={() => handleInvoicePress(invoice.invoiceNo)}
+                  showActions={false}
+                />
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No invoices yet</Text>
+                <Text style={styles.emptySubtext}>Create your first invoice to get started</Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.spacer} />
+        </ScrollView>
+
+        {/* Edit Invoice Modal */}
+        <EditInvoiceModal
+          visible={showEditInvoiceModal}
+          invoice={selectedInvoice}
+          onClose={() => {
+            setShowEditInvoiceModal(false);
+            setSelectedInvoice(null);
+          }}
+          onRefresh={refreshData}
+        />
+
+       
+      </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+  },
+  blurOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  darkOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)', // Darker overlay
+  },
   container: {
     flex: 1,
-    backgroundColor: 'rgba(249, 250, 251, 0.1)',  
   },
   loadingContainer: {
     justifyContent: 'center',
@@ -406,7 +474,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: '#6b7280',
+    color: Colors.dark.textMuted,
   },
   scrollView: {
     flex: 1,
@@ -421,12 +489,12 @@ const styles = StyleSheet.create({
   mainTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#111827',
+    color: Colors.dark.text,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6b7280',
+    color: Colors.dark.textSecondary,
     lineHeight: 20,
   },
   spacer: {
@@ -446,11 +514,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   profitCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.dark.card,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: Colors.dark.cardBorder,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -462,18 +530,18 @@ const styles = StyleSheet.create({
   },
   profitLabel: {
     fontSize: 14,
-    color: '#6b7280',
+    color: Colors.dark.textSecondary,
     marginBottom: 4,
   },
   profitValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#059669',
+    color: Colors.dark.success,
     marginBottom: 4,
   },
   profitSubtitle: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: Colors.dark.textMuted,
     textAlign: 'center',
   },
   sectionHeader: {
@@ -490,11 +558,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
+    color: Colors.dark.text,
   },
   allTimeProfitCard: {
-    backgroundColor: '#f0fdf4',
-    borderColor: '#bbf7d0',
+    backgroundColor: Colors.dark.cardSecondary,
+    borderColor: Colors.dark.borderLight,
   },
   emptyState: {
     alignItems: 'center',
@@ -503,12 +571,12 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#6b7280',
+    color: Colors.dark.textSecondary,
     marginBottom: 4,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: Colors.dark.textMuted,
   },
   clientCard: {
     marginBottom: 8,
@@ -526,6 +594,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 8,
+  },
+  monthFilter: {
+    marginVertical: 0,
   },
 
 });

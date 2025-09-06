@@ -4,12 +4,13 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Platform, SafeAreaView, StyleSheet, View } from "react-native";
+import { SimpleBackground } from "../components";
 import { DatabaseProvider } from "../context/DatabaseContext";
 
 export default function RootLayout() {
   return (
     <DatabaseProvider>
-      
+      <SimpleBackground>
         <SafeAreaView style={styles.container}>
           <StatusBar style="light" />
           <Stack
@@ -25,8 +26,8 @@ export default function RootLayout() {
                   <View style={styles.gradientContainer}>
                     <LinearGradient
                       colors={[
-                        "#2F6BFF",
-                        "#2F6BFF55",
+                        "#3b82f6",
+                        "#3b82f655",
                         "hsla(0, 0.00%, 100.00%, 0.00)",
                       ]}
                       start={{ x: 0.5, y: 0 }}
@@ -37,9 +38,9 @@ export default function RootLayout() {
 
                   <LinearGradient
                     colors={[
-                      "rgba(255, 255, 255, 0.75)",
-                      "rgba(255, 255, 255, 0.35)",
-                      "rgba(255, 255, 255, 0)",
+                      "rgba(50, 52, 54, 0.75)",
+                      "rgba(240, 248, 255, 0.35)",
+                      "rgba(240, 248, 255, 0)",
                     ]}
                     style={StyleSheet.absoluteFill}
                   />
@@ -54,6 +55,7 @@ export default function RootLayout() {
             }}
           />
         </SafeAreaView>
+      </SimpleBackground>
     </DatabaseProvider>
   );
 }
@@ -61,7 +63,6 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'transparent',
   },
   headerBackground: {
     flex: 0.4,
@@ -76,7 +77,7 @@ const styles = StyleSheet.create({
   gradient: {
     width: "100%",
     height: 18,
-    shadowColor: "#2F6BFF",
+    shadowColor: "#3b82f6",
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.35,
     shadowRadius: 40,

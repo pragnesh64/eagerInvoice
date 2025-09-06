@@ -38,7 +38,17 @@ export const ClientService = {
 
     delete: (id: string) => DatabaseUtils.delete('clients', { id }),
 
-    getById: (id: string) => DatabaseUtils.select('clients', { id })[0],
+    getById: (id: string) => {
+        try {
+            console.log('🔍 ClientService.getById called with ID:', id);
+            const result = DatabaseUtils.select('clients', { id });
+            console.log('📋 Query result:', result);
+            return result[0];
+        } catch (error) {
+            console.error('❌ Error in ClientService.getById:', error);
+            return null;
+        }
+    },
 
     getAll: () => {
         const results = DatabaseUtils.select('clients', undefined, { field: 'created_at', direction: 'DESC' });
@@ -57,8 +67,60 @@ export const InvoiceService = {
     }) => {
         try {
             const now = new Date().toISOString();
-            const client = ClientService.getById(data.clientId);
-            if (!client) throw new Error('Client not found');
+            
+            // Validate input data
+            if (!data.clientId || typeof data.clientId !== 'string' || data.clientId.trim() === '') {
+                throw new Error('Invalid client ID provided');
+            }
+            
+            if (!data.amount || typeof data.amount !== 'number' || data.amount <= 0) {
+                throw new Error('Invalid amount provided');
+            }
+            
+            if (!data.date || typeof data.date !== 'string') {
+                throw new Error('Invalid date provided');
+            }
+            
+            // Debug: Log the client ID being searched
+            console.log('🔍 Looking for client with ID:', data.clientId, 'Type:', typeof data.clientId);
+            
+            // Debug: Get all clients to see what's available
+            const allClients = ClientService.getAll();
+            console.log('📋 Available clients:', allClients.map(c => ({ id: c.id, name: c.name, idType: typeof c.id })));
+            
+            // Try multiple approaches to find the client
+            let client = ClientService.getById(data.clientId);
+            console.log('🎯 Found client (first attempt):', client);
+            
+            // If not found, try trimming the ID and searching again
+            if (!client) {
+                const trimmedId = data.clientId.trim();
+                console.log('🔄 Trying with trimmed ID:', trimmedId);
+                client = ClientService.getById(trimmedId);
+                console.log('🎯 Found client (trimmed attempt):', client);
+            }
+            
+            // If still not found, try to find by exact string match
+            if (!client) {
+                console.log('🔄 Trying direct array search...');
+                client = allClients.find(c => c.id === data.clientId || c.id === data.clientId.trim()) || null;
+                console.log('🎯 Found client (array search):', client);
+            }
+            
+            if (!client) {
+                const availableIds = allClients.map(c => c.id);
+                console.error('❌ Client not found after all attempts.');
+                console.error('🔍 Searched for:', data.clientId);
+                console.error('📋 Available IDs:', availableIds);
+                console.error('🔢 ID comparisons:');
+                availableIds.forEach(id => {
+                    console.error(`  "${id}" === "${data.clientId}": ${id === data.clientId}`);
+                    console.error(`  "${id}" === "${data.clientId.trim()}": ${id === data.clientId.trim()}`);
+                });
+                throw new Error(`Client not found. Searched ID: "${data.clientId}". Available IDs: [${availableIds.join(', ')}]`);
+            }
+            
+            console.log('✅ Client found successfully:', client.name);
 
             // Debug: Get all existing invoices to see what's there
             const allInvoices = DatabaseUtils.query('SELECT invoice_no FROM invoices ORDER BY created_at ASC');
@@ -230,16 +292,67 @@ export const InvoiceService = {
         amount?: number;
         date?: string;
     }) => {
-        const updates: any = {};
-        if (data.clientId) updates.client_id = data.clientId;
-        if (data.amount !== undefined) updates.amount = data.amount;
-        if (data.date) updates.date = data.date;
-        updates.updated_at = new Date().toISOString();
+        try {
+            // Get original invoice to check if month changed
+            const originalInvoice = DatabaseUtils.select('invoices', { id })[0];
+            if (!originalInvoice) {
+                throw new Error('Invoice not found');
+            }
 
-        return DatabaseUtils.update('invoices', updates, { id });
+            const updates: any = {};
+            if (data.clientId) updates.client_id = data.clientId;
+            if (data.amount !== undefined) updates.amount = data.amount;
+            if (data.date) updates.date = data.date;
+            updates.updated_at = new Date().toISOString();
+
+            const result = DatabaseUtils.update('invoices', updates, { id });
+
+            // Recalculate salary for affected months
+            const originalMonth = new Date(originalInvoice.date).toISOString().slice(0, 7);
+            const newMonth = data.date ? new Date(data.date).toISOString().slice(0, 7) : originalMonth;
+
+            // Recalculate for original month
+            SalaryService.calculateAndUpdateSalary(originalMonth);
+
+            // If month changed, recalculate for new month too
+            if (newMonth !== originalMonth) {
+                SalaryService.calculateAndUpdateSalary(newMonth);
+                console.log(`Salary recalculated for both months: ${originalMonth} and ${newMonth}`);
+            } else {
+                console.log(`Salary recalculated for month: ${originalMonth}`);
+            }
+
+            return result;
+        } catch (error) {
+            console.error('Error updating invoice:', error);
+            throw error;
+        }
     },
 
-    delete: (id: string) => DatabaseUtils.delete('invoices', { id }),
+    delete: (id: string) => {
+        try {
+            // Get invoice details before deletion to recalculate salary
+            const invoice = DatabaseUtils.select('invoices', { id })[0];
+            if (!invoice) {
+                throw new Error('Invoice not found');
+            }
+
+            // Delete the invoice
+            const result = DatabaseUtils.delete('invoices', { id });
+
+            // Recalculate salary for the invoice's month
+            if (invoice.date) {
+                const invoiceMonth = new Date(invoice.date).toISOString().slice(0, 7);
+                SalaryService.calculateAndUpdateSalary(invoiceMonth);
+                console.log(`Salary recalculated for month ${invoiceMonth} after invoice deletion`);
+            }
+
+            return result;
+        } catch (error) {
+            console.error('Error deleting invoice:', error);
+            throw error;
+        }
+    },
 
     getById: (id: string) => DatabaseUtils.select('invoices', { id })[0],
 
@@ -293,79 +406,62 @@ export const SalaryService = {
     },
 
     calculateAndUpdateSalary: (month: string) => {
-        // Get monthly revenue
-        const monthlyRevenue = InvoiceService.getMonthlyRevenue(month);
-        
-        // Calculate salary based on revenue
-        const retainer = 15000 * 100; // ₹15,000 in paise
-        let commission = 0;
-        
-        const revenueInRupees = monthlyRevenue / 100;
-        if (revenueInRupees <= 50000) {
-            commission = revenueInRupees * 0.10 * 100; // 10% up to ₹50,000
-        } else if (revenueInRupees <= 100000) {
-            commission = (50000 * 0.10 * 100) + // 10% on first ₹50,000
-                        ((revenueInRupees - 50000) * 0.15 * 100); // 15% on ₹50,000-₹100,000
-        } else {
-            commission = (50000 * 0.10 * 100) + // 10% on first ₹50,000
-                        (50000 * 0.15 * 100) + // 15% on next ₹50,000
-                        ((revenueInRupees - 100000) * 0.20 * 100); // 20% above ₹100,000
-        }
-        
-        const total = Math.min(retainer + commission, 60000 * 100); // Cap at ₹60,000
-        
-        // Check if salary record exists for this month
-        const existingSalary = DatabaseUtils.select('salary_records', { month })[0];
-        
-        if (existingSalary) {
-            // Update existing record
-            return DatabaseUtils.update('salary_records', {
-                retainer,
-                commission,
-                total,
-                updated_at: new Date().toISOString()
-            }, { month });
-        } else {
-            // Create new record
-            return DatabaseUtils.insert('salary_records', {
-                id: generateId(),
-                month,
-                retainer,
-                commission,
-                total,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-            });
+        try {
+            // Get monthly revenue
+            const monthlyRevenue = InvoiceService.getMonthlyRevenue(month);
+            
+            // Use centralized calculation logic
+            const { calculateSalary } = require('../utils/calculationUtils');
+            const salaryBreakdown = calculateSalary(monthlyRevenue);
+            
+            // Check if salary record exists for this month
+            const existingSalary = DatabaseUtils.select('salary_records', { month })[0];
+            
+            if (existingSalary) {
+                // Update existing record
+                return DatabaseUtils.update('salary_records', {
+                    retainer: salaryBreakdown.retainer,
+                    commission: salaryBreakdown.commission,
+                    total: salaryBreakdown.total,
+                    updated_at: new Date().toISOString()
+                }, { month });
+            } else {
+                // Create new record
+                return DatabaseUtils.insert('salary_records', {
+                    id: generateId(),
+                    month,
+                    retainer: salaryBreakdown.retainer,
+                    commission: salaryBreakdown.commission,
+                    total: salaryBreakdown.total,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                });
+            }
+        } catch (error) {
+            console.error('Error calculating and updating salary:', error);
+            throw error;
         }
     },
 
     getCalculatedSalary: (month: string) => {
-        // Get monthly revenue
-        const monthlyRevenue = InvoiceService.getMonthlyRevenue(month);
-        
-        // Calculate salary based on revenue
-        const retainer = 15000 * 100; // ₹15,000 in paise
-        let commission = 0;
-        
-        const revenueInRupees = monthlyRevenue / 100;
-        if (revenueInRupees <= 50000) {
-            commission = revenueInRupees * 0.10 * 100; // 10% up to ₹50,000
-        } else if (revenueInRupees <= 100000) {
-            commission = (50000 * 0.10 * 100) + // 10% on first ₹50,000
-                        ((revenueInRupees - 50000) * 0.15 * 100); // 15% on ₹50,000-₹100,000
-        } else {
-            commission = (50000 * 0.10 * 100) + // 10% on first ₹50,000
-                        (50000 * 0.15 * 100) + // 15% on next ₹50,000
-                        ((revenueInRupees - 100000) * 0.20 * 100); // 20% above ₹100,000
+        try {
+            // Get monthly revenue
+            const monthlyRevenue = InvoiceService.getMonthlyRevenue(month);
+            
+            // Use centralized calculation logic
+            const { calculateSalary } = require('../utils/calculationUtils');
+            return calculateSalary(monthlyRevenue);
+        } catch (error) {
+            console.error('Error calculating salary:', error);
+            // Return default values on error
+            const { rupeesToPaise } = require('../utils/calculationUtils');
+            return {
+                retainer: rupeesToPaise(15000),
+                commission: 0,
+                total: rupeesToPaise(15000),
+                revenueUsed: 0
+            };
         }
-        
-        const total = Math.min(retainer + commission, 60000 * 100); // Cap at ₹60,000
-        
-        return {
-            retainer,
-            commission,
-            total
-        };
     },
 };
 

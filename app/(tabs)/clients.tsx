@@ -1,11 +1,10 @@
+import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { ClientCard, FloatingActionButton } from '../../components';
-import { AddClientModal } from '../../components/modals/AddClientModal';
-import { EditClientModal } from '../../components/modals/EditClientModal';
-import { IconSymbol } from '../../components/ui/IconSymbol';
+import { Alert, ImageBackground, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { AddClientModal, ClientCard, EditClientModal, FloatingActionButton, IconSymbol } from '../../components';
+import { Colors } from '../../constants/Colors';
 import { useDatabase } from '../../context/DatabaseContext';
 
 interface Client {
@@ -153,116 +152,149 @@ export default function ClientsScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <Text style={styles.loadingText}>Loading clients...</Text>
-      </View>
+      <ImageBackground
+        source={require('../../assets/images/bgimage.jpg')}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      >
+        <BlurView intensity={20} tint="light" style={styles.blurOverlay} />
+        <View style={styles.darkOverlay} />
+        <View style={[styles.container, styles.loadingContainer]}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </ImageBackground>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
-      
-      <ScrollView 
-        style={styles.scrollView} 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.mainTitle}>Clients</Text>
-          <Text style={styles.subtitle}>Manage your client relationships</Text>
-        </View>
+    <ImageBackground
+      source={require('../../assets/images/bgimage.jpg')}
+      style={styles.backgroundImage}
+      resizeMode="cover"
+    >
+      <BlurView intensity={20} tint="light" style={styles.blurOverlay} />
+      <View style={styles.darkOverlay} />
+      <View style={styles.container}>
+        <StatusBar style="light" />
+        
+        <ScrollView 
+          style={styles.scrollView} 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.mainTitle}>Clients</Text>
+            <Text style={styles.subtitle}>Manage your client relationships</Text>
+          </View>
 
-        <View style={styles.spacer} />
+          <View style={styles.spacer} />
 
-        {/* Search Bar */}
-        <View style={styles.searchBarContainer}>
-          <IconSymbol name="magnifyingglass" size={20} color="#6b7280" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search clients..."
-            placeholderTextColor="#6b7280"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            returnKeyType="search"
-            clearButtonMode={Platform.OS === 'ios' ? 'while-editing' : 'never'}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={clearSearch}>
-              <IconSymbol name="xmark.circle.fill" size={20} color="#6b7280" />
-            </TouchableOpacity>
-          )}
-        </View>
+          {/* Search Bar */}
+          <View style={styles.searchBarContainer}>
+            <IconSymbol name="magnifyingglass" size={20} color={Colors.light.textMuted} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search clients..."
+              placeholderTextColor={Colors.light.textMuted}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+              clearButtonMode={Platform.OS === 'ios' ? 'while-editing' : 'never'}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={clearSearch}>
+                <IconSymbol name="xmark.circle.fill" size={20} color={Colors.light.textMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
 
-        <View style={styles.spacer} />
+          <View style={styles.spacer} />
 
-        {/* Client List */}
-        <View style={styles.clientList}>
-          {filteredClients.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>
-                {searchQuery.trim() ? 'No clients found matching your search' : 'No clients yet. Add your first client!'}
-              </Text>
-              {searchQuery.trim() && (
-                <Text style={styles.emptySubtext}>Try searching by name, type, or notes</Text>
-              )}
-            </View>
-          ) : (
-            filteredClients.map(client => (
-              <ClientCard
-                key={client.id}
-                client={client}
-                onEdit={() => handleEditClient(client)}
-                onDelete={() => handleDeleteClient(client)}
-                onInvoices={() => handleViewInvoices(client)}
-                style={styles.clientCard}
-              />
-            ))
-          )}
-        </View>
+          {/* Client List */}
+          <View style={styles.clientList}>
+            {filteredClients.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>
+                  {searchQuery.trim() ? 'No clients found matching your search' : 'No clients yet. Add your first client!'}
+                </Text>
+                {searchQuery.trim() && (
+                  <Text style={styles.emptySubtext}>Try searching by name, type, or notes</Text>
+                )}
+              </View>
+            ) : (
+              filteredClients.map(client => (
+                <ClientCard
+                  key={client.id}
+                  client={client}
+                  onEdit={() => handleEditClient(client)}
+                  onDelete={() => handleDeleteClient(client)}
+                  onInvoices={() => handleViewInvoices(client)}
+                  style={styles.clientCard}
+                />
+              ))
+            )}
+          </View>
 
-        <View style={styles.largeSpacer} />
-      </ScrollView>
+          <View style={styles.largeSpacer} />
+        </ScrollView>
 
-      {/* Floating Action Button */}
-      <FloatingActionButton
-        icon="plus"
-        variant="primary"
-        onPress={handleAddClient}
-      />
+        {/* Floating Action Button */}
+        <FloatingActionButton
+          icon="plus"
+          variant="primary"
+          onPress={handleAddClient}
+        />
 
-      {/* Add Client Modal */}
-      <AddClientModal
-        visible={showAddClientModal}
-        onClose={() => {
-          setShowAddClientModal(false);
-        }}
-        onRefresh={refreshData}
-      />
+        {/* Add Client Modal */}
+        <AddClientModal
+          visible={showAddClientModal}
+          onClose={() => {
+            setShowAddClientModal(false);
+          }}
+          onRefresh={refreshData}
+        />
 
-      {/* Edit Client Modal */}
-      <EditClientModal
-        visible={showEditClientModal}
-        client={selectedClient}
-        onClose={() => {
-          setShowEditClientModal(false);
-          setSelectedClient(null);
-        }}
-        onRefresh={refreshData}
-      />
-    </View>
+        {/* Edit Client Modal */}
+        <EditClientModal
+          visible={showEditClientModal}
+          client={selectedClient}
+          onClose={() => {
+            setShowEditClientModal(false);
+            setSelectedClient(null);
+          }}
+          onRefresh={refreshData}
+        />
+      </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+  },
+  blurOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  darkOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)', // Darker overlay
+  },
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
   },
   loadingContainer: {
     justifyContent: 'center',
@@ -270,7 +302,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: '#6b7280',
+    color: Colors.dark.textMuted,
   },
   scrollView: {
     flex: 1,
@@ -286,12 +318,12 @@ const styles = StyleSheet.create({
   mainTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#111827',
+    color: Colors.dark.text,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6b7280',
+    color: Colors.dark.textSecondary,
     lineHeight: 20,
   },
   spacer: {
@@ -303,12 +335,12 @@ const styles = StyleSheet.create({
   searchBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.dark.card,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: Colors.dark.cardBorder,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -319,7 +351,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
     fontSize: 16,
-    color: '#111827',
+    color: Colors.dark.text,
     ...Platform.select({
       ios: {
         paddingVertical: 0,
@@ -342,13 +374,13 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#6b7280',
+    color: Colors.dark.textSecondary,
     textAlign: 'center',
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: Colors.dark.textMuted,
     textAlign: 'center',
   },
 }); 

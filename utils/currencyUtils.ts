@@ -1,18 +1,12 @@
+import { formatCurrency as formatCurrencyUtil, paiseToRupees as paiseToRupeesUtil, rupeesToPaise as rupeesToPaiseUtil } from './calculationUtils';
+
 /**
  * Format a number as Indian Rupees (INR)
  * @param value - The amount in paise (1 rupee = 100 paise)
  * @returns Formatted currency string (e.g., "₹2,000.00")
  */
 export const formatCurrency = (value: number): string => {
-  // Convert from paise to rupees
-  const rupees = value / 100;
-  
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(rupees);
+  return formatCurrencyUtil(value, true);
 };
 
 /**
@@ -21,7 +15,7 @@ export const formatCurrency = (value: number): string => {
  * @returns Amount in paise
  */
 export const rupeesToPaise = (rupees: number): number => {
-  return Math.round(rupees * 100);
+  return rupeesToPaiseUtil(rupees);
 };
 
 /**
@@ -30,7 +24,7 @@ export const rupeesToPaise = (rupees: number): number => {
  * @returns Amount in rupees
  */
 export const paiseToRupees = (paise: number): number => {
-  return paise / 100;
+  return paiseToRupeesUtil(paise);
 };
 
 /**
@@ -39,10 +33,5 @@ export const paiseToRupees = (paise: number): number => {
  * @returns Formatted number string (e.g., "2,000.00")
  */
 export const formatRupees = (value: number): string => {
-  const rupees = value / 100;
-  
-  return new Intl.NumberFormat("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(rupees);
+  return formatCurrencyUtil(value, false);
 };

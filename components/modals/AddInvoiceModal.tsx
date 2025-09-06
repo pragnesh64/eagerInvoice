@@ -3,6 +3,8 @@ import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { useDatabase } from '../../context/DatabaseContext';
 import { useColorScheme } from '../../hooks/useColorScheme';
+import { useInvoiceSync } from '../../hooks/useSyncData';
+import { validateInvoiceAmount } from '../../utils/calculationUtils';
 import { rupeesToPaise } from '../../utils/currencyUtils';
 import { Button } from '../ui/Button';
 import { DatePicker } from '../ui/DatePicker';
@@ -23,7 +25,8 @@ interface AddInvoiceModalProps {
 }
 
 export function AddInvoiceModal({ visible, onClose, onRefresh }: AddInvoiceModalProps) {
-  const { clients, invoices, salary } = useDatabase();
+  const { clients, invoices } = useDatabase();
+  const { syncAfterInvoiceOperation, syncState } = useInvoiceSync();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const [clientList, setClientList] = useState<Client[]>([]);
@@ -34,6 +37,7 @@ export function AddInvoiceModal({ visible, onClose, onRefresh }: AddInvoiceModal
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -42,18 +46,30 @@ export function AddInvoiceModal({ visible, onClose, onRefresh }: AddInvoiceModal
   const loadData = async () => {
     try {
       setIsLoading(true);
+      console.log('🔄 Loading clients for AddInvoiceModal...');
+      
       const allClients = await clients.getAll();
-      setClientList(allClients.map(client => ({
+      console.log('📋 Loaded clients:', allClients.map(c => ({ id: c.id, name: c.name, type: c.type })));
+      
+      if (!allClients || allClients.length === 0) {
+        console.warn('⚠️ No clients found in database');
+        Alert.alert('Warning', 'No clients found. Please add a client first.');
+        return;
+      }
+      
+      const mappedClients = allClients.map(client => ({
         id: client.id,
         name: client.name,
         type: client.type,
         createdAt: client.createdAt
-      })));
-
+      }));
+      
+      setClientList(mappedClients);
+      console.log('✅ Client list updated:', mappedClients.length, 'clients');
 
     } catch (error) {
-      console.error('Error loading data:', error);
-      Alert.alert('Error', 'Failed to load data. Please try again.');
+      console.error('❌ Error loading clients:', error);
+      Alert.alert('Error', 'Failed to load clients. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -69,17 +85,38 @@ export function AddInvoiceModal({ visible, onClose, onRefresh }: AddInvoiceModal
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.clientId) {
+    if (!formData.clientId || formData.clientId.trim() === '') {
       newErrors.clientId = 'Client is required';
+    } else {
+      // Verify the selected client exists in the loaded client list
+      const selectedClient = clientList.find(c => c.id === formData.clientId);
+      if (!selectedClient) {
+        console.error('❌ Selected client not found in client list:', {
+          selectedId: formData.clientId,
+          availableClients: clientList.map(c => ({ id: c.id, name: c.name }))
+        });
+        newErrors.clientId = 'Selected client is invalid. Please select a valid client.';
+      }
     }
 
-    if (!formData.amount.trim()) {
-      newErrors.amount = 'Amount is required';
-    } else {
-      const amount = parseFloat(formData.amount);
-      if (isNaN(amount) || amount <= 0) {
-        newErrors.amount = 'Amount must be a positive number';
-      }
+    // Use centralized validation
+    const amountValidation = validateInvoiceAmount(formData.amount);
+    if (!amountValidation.isValid) {
+      newErrors.amount = amountValidation.error || 'Invalid amount';
+    }
+
+    // Validate date is not in the future
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // End of today
+    if (formData.date > today) {
+      newErrors.date = 'Invoice date cannot be in the future';
+    }
+
+    // Validate date is not too old (e.g., more than 5 years ago)
+    const fiveYearsAgo = new Date();
+    fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+    if (formData.date < fiveYearsAgo) {
+      newErrors.date = 'Invoice date cannot be more than 5 years ago';
     }
 
     setErrors(newErrors);
@@ -87,22 +124,40 @@ export function AddInvoiceModal({ visible, onClose, onRefresh }: AddInvoiceModal
   };
 
   const handleSubmit = async () => {
-    if (!validateForm()) {
+    if (!validateForm() || isSubmitting) {
       return;
     }
 
+    setIsSubmitting(true);
+
     try {
+      const amountValidation = validateInvoiceAmount(formData.amount);
+      if (!amountValidation.isValid || !amountValidation.value) {
+        Alert.alert('Error', 'Invalid amount');
+        return;
+      }
+
+      const invoiceMonth = formData.date.toISOString().slice(0, 7);
+
+      // Debug: Log the form data being submitted
+      console.log('📝 Submitting invoice with data:', {
+        clientId: formData.clientId,
+        amount: amountValidation.value,
+        date: formData.date.toISOString().split('T')[0],
+        clientList: clientList.map(c => ({ id: c.id, name: c.name }))
+      });
+
+      // Create the invoice
       await invoices.create({
         clientId: formData.clientId,
-        amount: rupeesToPaise(parseFloat(formData.amount)),
+        amount: rupeesToPaise(amountValidation.value),
         date: formData.date.toISOString().split('T')[0],
       });
 
-      // Calculate and update salary for the invoice month
-      const invoiceMonth = formData.date.toISOString().slice(0, 7);
-      await salary.calculateAndUpdateSalary(invoiceMonth);
+      // Trigger real-time synchronization for commission and profit calculations
+      await syncAfterInvoiceOperation('create', { month: invoiceMonth });
 
-      Alert.alert('Success', 'Invoice added successfully!');
+      Alert.alert('Success', 'Invoice added successfully! Commission and profit updated.');
       
       // Refresh the parent component's data
       if (onRefresh) {
@@ -113,6 +168,8 @@ export function AddInvoiceModal({ visible, onClose, onRefresh }: AddInvoiceModal
     } catch (error) {
       console.error('Error adding invoice:', error);
       Alert.alert('Error', 'Failed to add invoice. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -207,11 +264,17 @@ export function AddInvoiceModal({ visible, onClose, onRefresh }: AddInvoiceModal
 
           <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
             <Button
-              title="Add Invoice"
+              title={isSubmitting || syncState.isSyncing ? "Processing..." : "Add Invoice"}
               variant="primary"
               onPress={handleSubmit}
+              disabled={isSubmitting || syncState.isSyncing}
               style={styles.submitButton}
             />
+            {syncState.syncError && (
+              <Text style={[styles.errorText, { color: colors.error }]}>
+                Sync Error: {syncState.syncError}
+              </Text>
+            )}
           </View>
         </View>
       </View>
@@ -272,6 +335,11 @@ const styles = StyleSheet.create({
   submitButton: {
     width: '100%',
     height: 50,
+  },
+  errorText: {
+    fontSize: 12,
+    marginTop: 8,
+    textAlign: 'center',
   },
 });
 

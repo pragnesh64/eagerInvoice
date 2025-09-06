@@ -1,6 +1,7 @@
 /**
  * Modern fintech-inspired color palette for EagerInvoice
  * Based on NeoPOP design principles with clean, professional colors
+ * Light Blue Theme
  */
 
 const tintColorLight = '#0a7ea4';
@@ -27,19 +28,19 @@ export const Colors = {
     warning: '#f59e0b', // Amber
     error: '#ef4444', // Red
     
-    // Neutral colors
-    text: '#11181C',
-    textSecondary: '#64748b',
-    textMuted: '#94a3b8',
-    background: '#ffffff',
-    backgroundSecondary: '#f8fafc',
-    border: '#e2e8f0',
-    borderLight: '#f1f5f9',
+    // Neutral colors - Light Blue Theme
+    text: '#1e293b',
+    textSecondary: '#475569',
+    textMuted: '#64748b',
+    background: '#f0f8ff', // Alice Blue - main background
+    backgroundSecondary: '#e6f3ff', // Lighter blue for secondary backgrounds
+    border: '#bfdbfe', // Light blue border
+    borderLight: '#dbeafe', // Very light blue border
     
-    // Card & Surface colors
+    // Card & Surface colors - Light Blue Theme
     card: '#ffffff',
-    cardSecondary: '#f8fafc',
-    cardBorder: '#e2e8f0',
+    cardSecondary: '#f8fbff', // Very light blue tint
+    cardBorder: '#bfdbfe',
     
     // Status colors
     success: '#10b981',
@@ -49,8 +50,8 @@ export const Colors = {
     
     // Legacy colors (keeping for compatibility)
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
+    icon: '#475569',
+    tabIconDefault: '#64748b',
     tabIconSelected: tintColorLight,
   },
   dark: {
@@ -73,12 +74,12 @@ export const Colors = {
     warning: '#fbbf24',
     error: '#f87171',
     
-    // Neutral colors
-    text: '#f8fafc',
-    textSecondary: '#cbd5e1',
+    // Neutral colors - Dark Blue Theme
+    text: 'white',
+    textSecondary: 'lightgray',
     textMuted: '#94a3b8',
-    background: '#0f172a',
-    backgroundSecondary: '#1e293b',
+    background: '#0f172a', // Dark blue background
+    backgroundSecondary: '#1e293b', // Slightly lighter dark blue
     border: '#334155',
     borderLight: '#475569',
     
@@ -101,15 +102,16 @@ export const Colors = {
   },
 };
 
-// Gradient presets for modern UI
+// Gradient presets for modern UI - Updated with light blue theme
 export const Gradients = {
   primary: ['#2563eb', '#1d4ed8'],
   secondary: ['#8b5cf6', '#7c3aed'],
   success: ['#10b981', '#059669'],
   warning: ['#f59e0b', '#d97706'],
   error: ['#ef4444', '#dc2626'],
-  card: ['#ffffff', '#f8fafc'],
+  card: ['#ffffff', '#f8fbff'], // Light blue card gradient
   cardDark: ['#1e293b', '#334155'],
+  background: ['#f0f8ff', '#e6f3ff'], // Light blue background gradient
 };
 
 // Shadow presets for depth

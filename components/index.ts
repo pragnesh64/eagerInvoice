@@ -18,3 +18,6 @@ export { default as ParallaxScrollView } from './ParallaxScrollView';
 export { ThemedText } from './ThemedText';
 export { ThemedView } from './ThemedView';
 
+// Animation utilities
+export * from '../utils/animationUtils';
+
